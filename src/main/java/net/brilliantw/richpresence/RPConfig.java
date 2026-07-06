@@ -7,6 +7,9 @@ public final class RPConfig {
 
 	public static final long CLIENT_ID = 1014145002496065577L;
 
+	public static final String MINECRAFT_VERSION = //$ minecraft
+			"unknown";
+
 	public static final String BASE_DOMAIN = "brilliantw.net";
 
 	public static final Map<String, String> SERVER_LABELS = Map.ofEntries(

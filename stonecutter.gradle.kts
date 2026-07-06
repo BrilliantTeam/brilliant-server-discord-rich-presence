@@ -3,3 +3,7 @@ plugins {
 }
 
 stonecutter active "26.2"
+
+stonecutter parameters {
+    swaps["minecraft"] = "\"${node.metadata.version}\";"
+}

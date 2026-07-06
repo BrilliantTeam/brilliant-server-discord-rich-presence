@@ -29,6 +29,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 	private void startPresenceFor(String host) {
 		String label = RPConfig.SERVER_LABELS.getOrDefault(host, RPConfig.SERVER_LABELS.get(RPConfig.BASE_DOMAIN));
 		String smallImageKey = RPConfig.SERVER_IMAGE_KEYS.getOrDefault(host, RPConfig.DEFAULT_IMAGE_KEY);
-		presence.start(label, host, smallImageKey);
+		String state = host + "｜" + RPConfig.MINECRAFT_VERSION;
+		presence.start(label, state, smallImageKey);
 	}
 }
