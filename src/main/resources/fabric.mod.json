@@ -1,0 +1,21 @@
+{
+	"schemaVersion": 1,
+	"id": "${id}",
+	"version": "${version}",
+	"name": "${name}",
+	"description": "Shows a Discord Rich Presence status while playing on brilliantw.net.",
+	"authors": ["ricechen_"],
+	"license": "CC0-1.0",
+	"icon": "assets/brilliant-server-discord-rich-presence/icon.jpg",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"net.brilliantw.richpresence.RichPresenceModClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.15.11",
+		"minecraft": "${minecraft}",
+		"fabric-api": "*"
+	}
+}
