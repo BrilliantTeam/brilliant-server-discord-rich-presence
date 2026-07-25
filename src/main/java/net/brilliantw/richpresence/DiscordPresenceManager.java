@@ -9,7 +9,8 @@ import com.jagrosh.discordipc.entities.User;
 import com.google.gson.JsonObject;
 
 public final class DiscordPresenceManager {
-	private IPCClient client;
+	private volatile boolean active;
+	private volatile IPCClient client;
 	private String details;
 	private String state;
 	private String smallImageKey;
@@ -19,6 +20,7 @@ public final class DiscordPresenceManager {
 		this.details = details;
 		this.state = state;
 		this.smallImageKey = smallImageKey;
+		active = true;
 		client = new IPCClient(RPConfig.CLIENT_ID);
 		client.setListener(new IPCListener() {
 			@Override
@@ -48,25 +50,19 @@ public final class DiscordPresenceManager {
 
 			@Override
 			public void onClose(IPCClient c, JsonObject json) {
+				reconnect(c);
 			}
 
 			@Override
 			public void onDisconnect(IPCClient c, Throwable t) {
+				reconnect(c);
 			}
 		});
-
-		Thread connectThread = new Thread(() -> {
-			try {
-				client.connect();
-			} catch (Exception e) {
-				System.err.println("[brilliantw-richpresence] Failed to connect to Discord: " + e.getMessage());
-			}
-		}, "brilliantw-richpresence-connect");
-		connectThread.setDaemon(true);
-		connectThread.start();
+		connect(client);
 	}
 
 	public void stop() {
+		active = false;
 		if (client != null) {
 			IPCClient closing = client;
 			client = null;
@@ -75,6 +71,26 @@ public final class DiscordPresenceManager {
 			} catch (Exception ignored) {
 			}
 		}
+	}
+
+	private void reconnect(IPCClient disconnected) {
+		if (!active || disconnected != client) {
+			return;
+		}
+		connect(disconnected);
+	}
+
+	private void connect(IPCClient target) {
+		Thread connectThread = new Thread(() -> {
+			try {
+				target.connect();
+			} catch (Exception e) {
+				System.err.println("[brilliantw-richpresence] Failed to connect to Discord: " + e.getMessage());
+				reconnect(target);
+			}
+		}, "brilliantw-richpresence-connect");
+		connectThread.setDaemon(true);
+		connectThread.start();
 	}
 
 	private RichPresence buildPresence() {
