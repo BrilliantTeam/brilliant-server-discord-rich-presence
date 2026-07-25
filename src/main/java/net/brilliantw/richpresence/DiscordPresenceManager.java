@@ -6,6 +6,7 @@ import com.jagrosh.discordipc.entities.ActivityType;
 import com.jagrosh.discordipc.entities.Packet;
 import com.jagrosh.discordipc.entities.RichPresence;
 import com.jagrosh.discordipc.entities.User;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 public final class DiscordPresenceManager {
@@ -94,6 +95,12 @@ public final class DiscordPresenceManager {
 	}
 
 	private RichPresence buildPresence() {
+		JsonObject button = new JsonObject();
+		button.addProperty("label", RPConfig.WEBSITE_LABEL);
+		button.addProperty("url", RPConfig.WEBSITE_URL);
+		JsonArray buttons = new JsonArray();
+		buttons.add(button);
+
 		return new RichPresence.Builder()
 				.setActivityType(ActivityType.Playing)
 				.setDetails(details)
@@ -101,6 +108,7 @@ public final class DiscordPresenceManager {
 				.setStartTimestamp(System.currentTimeMillis() / 1000L)
 				.setLargeImage(RPConfig.LARGE_IMAGE_KEY, RPConfig.LARGE_IMAGE_TEXT)
 				.setSmallImage(smallImageKey, RPConfig.SMALL_IMAGE_TEXT)
+				.setButtons(buttons)
 				.build();
 	}
 }

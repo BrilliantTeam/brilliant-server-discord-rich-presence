@@ -37,4 +37,7 @@ public final class RPConfig {
 
 	public static final String LARGE_IMAGE_TEXT = "brilliantw.net";
 	public static final String SMALL_IMAGE_TEXT = "brilliantw.net";
+
+	public static final String WEBSITE_LABEL = "加入伺服器";
+	public static final String WEBSITE_URL = "https://www.brilliantw.net";
 }
