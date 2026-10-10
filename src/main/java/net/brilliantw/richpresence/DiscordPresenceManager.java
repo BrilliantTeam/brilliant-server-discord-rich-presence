@@ -15,12 +15,14 @@ public final class DiscordPresenceManager {
 	private String details;
 	private String state;
 	private String smallImageKey;
+	private long startTimestamp;
 
 	public void start(String details, String state, String smallImageKey) {
 		stop();
 		this.details = details;
 		this.state = state;
 		this.smallImageKey = smallImageKey;
+		this.startTimestamp = System.currentTimeMillis() / 1000L;
 		active = true;
 		client = new IPCClient(RPConfig.CLIENT_ID);
 		client.setListener(new IPCListener() {
@@ -105,7 +107,7 @@ public final class DiscordPresenceManager {
 				.setActivityType(ActivityType.Playing)
 				.setDetails(details)
 				.setState(state)
-				.setStartTimestamp(System.currentTimeMillis() / 1000L)
+				.setStartTimestamp(startTimestamp)
 				.setLargeImage(RPConfig.LARGE_IMAGE_KEY, RPConfig.LARGE_IMAGE_TEXT)
 				.setSmallImage(smallImageKey, RPConfig.SMALL_IMAGE_TEXT)
 				.setButtons(buttons)
