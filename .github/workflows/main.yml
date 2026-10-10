@@ -32,7 +32,7 @@ jobs:
       - name: 編譯 1.21.x 版本
         run: |
           chmod +x gradlew
-          ./gradlew :1.21.1:build :1.21.2:build :1.21.3:build :1.21.4:build :1.21.5:build :1.21.6:build :1.21.7:build :1.21.8:build :1.21.9:build :1.21.10:build :1.21.11:build --continue
+          ./gradlew :1.21.11:build --continue
 
       - name: 編譯 26.x 版本
         run: |
@@ -42,7 +42,7 @@ jobs:
       - name: 收集 jar 檔
         run: |
           mkdir -p release
-          for v in 1.21.1 1.21.2 1.21.3 1.21.4 1.21.5 1.21.6 1.21.7 1.21.8 1.21.9 1.21.10 1.21.11 26.1 26.1.1 26.1.2 26.2 26.3; do
+          for v in 1.21.11 26.1 26.1.1 26.1.2 26.2 26.3; do
             cp "versions/$v/build/libs/"*"+$v.jar" release/
           done
           ls -la release/
@@ -53,7 +53,7 @@ jobs:
           tag_name: ${{ github.run_number }}
           name: Version ${{ github.run_number }} | ${{ github.event.head_commit.message }}
           body: |
-            支援 Minecraft ` 1.21.1 ` ~ ` 26.3 `，請在 **Assets** 區塊下載跟自己遊戲版本對應的 jar 檔安裝。
+            支援 Minecraft ` 1.21.11 ` ~ ` 26.3 `，請在 **Assets** 區塊下載跟自己遊戲版本對應的 jar 檔安裝。
 
             另需要對應版本的 [Fabric Loader](https://fabricmc.net/use/installer/) 與 [Fabric API](https://modrinth.com/mod/fabric-api)。
 
