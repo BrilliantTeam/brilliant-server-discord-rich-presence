@@ -1,14 +1,16 @@
 package net.brilliantw.richpresence;
 
 import java.util.Map;
+import net.fabricmc.loader.api.FabricLoader;
 
 public final class RPConfig {
 	private RPConfig() {}
 
 	public static final long CLIENT_ID = 1014145002496065577L;
 
-	public static final String MINECRAFT_VERSION = //$ minecraft
-			"unknown";
+	public static final String MINECRAFT_VERSION = FabricLoader.getInstance().getModContainer("minecraft")
+			.map(container -> container.getMetadata().getVersion().getFriendlyString())
+			.orElse("unknown");
 
 	public static final String BASE_DOMAIN = "brilliantw.net";
 
