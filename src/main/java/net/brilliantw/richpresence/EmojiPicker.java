@@ -131,13 +131,25 @@ public final class EmojiPicker {
 
 	//? if >=26.1 {
 	private static void drawSymbol(GuiGraphicsExtractor graphics, Font font, String symbol, int x, int y) {
-		graphics.text(font, symbol, x + (CELL - font.width(symbol)) / 2, y + (CELL - font.lineHeight) / 2 + 1, 0xFFFFFFFF, false);
-	}
 	//?} else {
 	/*private static void drawSymbol(GuiGraphics graphics, Font font, String symbol, int x, int y) {
-		graphics.drawString(font, symbol, x + (CELL - font.width(symbol)) / 2, y + (CELL - font.lineHeight) / 2 + 1, 0xFFFFFFFF, false);
+	*///?}
+		text(graphics, font, symbol, x + (CELL - font.width(symbol)) / 2, y + (CELL - font.lineHeight) / 2 + 1, 0xFFFFFFFF);
+	}
+
+	//? if >=26.1 {
+	static void text(GuiGraphicsExtractor graphics, Font font, String text, int x, int y, int color) {
+		graphics.text(font, text, x, y, color, false);
+	}
+	//?} else {
+	/*static void text(GuiGraphics graphics, Font font, String text, int x, int y, int color) {
+		graphics.drawString(font, text, x, y, color, false);
 	}
 	*///?}
+
+	static void close() {
+		open = false;
+	}
 
 	public static boolean mouseClicked(ChatScreen screen, double mouseX, double mouseY, int button) {
 		if (!active() || button != InputConstants.MOUSE_BUTTON_LEFT) {
@@ -145,6 +157,7 @@ public final class EmojiPicker {
 		}
 		if (inside(mouseX, mouseY, buttonX(screen), buttonY(screen), CELL, CELL)) {
 			open = !open;
+			ChannelBar.close();
 			return true;
 		}
 		if (!open || !inside(mouseX, mouseY, panelX(screen), panelY(screen), panelWidth(), panelHeight())) {
