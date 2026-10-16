@@ -74,12 +74,6 @@ jobs:
         run: |
           token=$(printf '%s' "$MODRINTH_TOKEN" | tr -d '[:space:]')
           token=${token#Bearer}
-          user=$(curl -sS -H "Authorization: $token" -H "User-Agent: BrilliantTeam/brilliant-server-mod (GitHub Actions)" https://api.modrinth.com/v2/user | jq -r '.username // empty')
-          if [ -z "$user" ]; then
-            echo "::error::MODRINTH_TOKEN 無效：請確認是 mrp_ 開頭的 Personal access token、未過期，且有勾選 Create versions 權限"
-            exit 1
-          fi
-          echo "以 Modrinth 帳號 $user 上傳"
           mod_version=$(sed -n 's/^mod\.version = "\(.*\)"$/\1/p' stonecutter.properties.toml)
           for jar in release/*.jar; do
             mc=$(basename "$jar" .jar)
@@ -97,10 +91,19 @@ jobs:
                 dependencies: [{project_id: $fabric, dependency_type: "required"}],
                 file_parts: ["file"], primary_file: "file"}')
             echo "上傳 $number"
-            curl --fail-with-body -sS -X POST https://api.modrinth.com/v2/version \
+            status=$(curl -sS -o response.json -w '%{http_code}' -X POST https://api.modrinth.com/v2/version \
               -H "Authorization: $token" \
               -H "User-Agent: BrilliantTeam/brilliant-server-mod (GitHub Actions)" \
               --form-string "data=$data" \
-              -F "file=@$jar;type=application/java-archive"
+              -F "file=@$jar;type=application/java-archive")
+            cat response.json
             echo
+            if [ "$status" = 401 ]; then
+              echo "::error::Modrinth 拒絕了 MODRINTH_TOKEN（HTTP 401）：請確認 Token 是 mrp_ 開頭、未過期、未刪除，且有勾選 Create versions 權限"
+              exit 1
+            fi
+            if [ "$status" -ge 300 ]; then
+              echo "::error::上傳 $number 失敗（HTTP $status）"
+              exit 1
+            fi
           done
