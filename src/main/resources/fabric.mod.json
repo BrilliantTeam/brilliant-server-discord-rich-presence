@@ -3,16 +3,17 @@
 	"id": "${id}",
 	"version": "${version}",
 	"name": "${name}",
-	"description": "Shows a Discord Rich Presence status while playing on brilliantw.net.",
+	"description": "Client companion for brilliantw.net: Discord Rich Presence and recipe book support for custom items.",
 	"authors": ["ricechen_"],
 	"license": "CC0-1.0",
-	"icon": "assets/brilliant-server-discord-rich-presence/icon.jpg",
+	"icon": "assets/brilliant-server-mod/icon.jpg",
 	"environment": "client",
 	"entrypoints": {
 		"client": [
 			"net.brilliantw.richpresence.RichPresenceModClient"
 		]
 	},
+	"mixins": ["brilliant-server-mod.mixins.json"],
 	"depends": {
 		"fabricloader": ">=0.15.11",
 		"minecraft": "${minecraft}",

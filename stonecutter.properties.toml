@@ -1,5 +1,5 @@
-mod.id = "brilliant-server-discord-rich-presence"
-mod.name = "Brilliant Server Discord Rich Presence"
+mod.id = "brilliant-server-mod"
+mod.name = "Brilliant-Server-Mod"
 mod.group = "net.brilliantw"
 mod.version = "1.0"
 

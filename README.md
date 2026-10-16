@@ -1,4 +1,4 @@
-# brilliant-server-discord-rich-presence
+# Brilliant-Server-Mod
 
 玩家的電腦需要：
 1. 裝 [Fabric Loader](https://fabricmc.net/use/installer/)，選擇跟自己遊戲版本一致的版本

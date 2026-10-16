@@ -25,4 +25,4 @@ stonecutter {
     }
 }
 
-rootProject.name = "brilliant-server-discord-rich-presence"
+rootProject.name = "brilliant-server-mod"
