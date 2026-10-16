@@ -69,6 +69,7 @@ tasks {
         }
 
         filesMatching("fabric.mod.json") { expand(props) }
+        from(rootProject.file("LICENSE"))
     }
 
     register<Copy>("buildAndCollect") {
