@@ -72,6 +72,14 @@ jobs:
           BUILD: v${{ github.run_number }}
           CHANGELOG: ${{ github.event.head_commit.message }}
         run: |
+          token=$(printf '%s' "$MODRINTH_TOKEN" | tr -d '[:space:]')
+          token=${token#Bearer}
+          user=$(curl -sS -H "Authorization: $token" -H "User-Agent: BrilliantTeam/brilliant-server-mod (GitHub Actions)" https://api.modrinth.com/v2/user | jq -r '.username // empty')
+          if [ -z "$user" ]; then
+            echo "::error::MODRINTH_TOKEN 無效：請確認是 mrp_ 開頭的 Personal access token、未過期，且有勾選 Create versions 權限"
+            exit 1
+          fi
+          echo "以 Modrinth 帳號 $user 上傳"
           mod_version=$(sed -n 's/^mod\.version = "\(.*\)"$/\1/p' stonecutter.properties.toml)
           for jar in release/*.jar; do
             mc=$(basename "$jar" .jar)
@@ -90,7 +98,7 @@ jobs:
                 file_parts: ["file"], primary_file: "file"}')
             echo "上傳 $number"
             curl --fail-with-body -sS -X POST https://api.modrinth.com/v2/version \
-              -H "Authorization: $MODRINTH_TOKEN" \
+              -H "Authorization: $token" \
               -H "User-Agent: BrilliantTeam/brilliant-server-mod (GitHub Actions)" \
               --form-string "data=$data" \
               -F "file=@$jar;type=application/java-archive"
