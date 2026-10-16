@@ -2,6 +2,7 @@ package net.brilliantw.richpresence;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -9,13 +10,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.zip.DataFormatException;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
 import net.fabricmc.loader.api.FabricLoader;
 
 public final class CommandStore {
@@ -34,22 +33,40 @@ public final class CommandStore {
 	public static final class Group {
 		public String name = "";
 		public List<Entry> commands = new ArrayList<>();
+		public List<Group> children = new ArrayList<>();
+		public transient boolean collapsed;
 
 		public Group() {}
 
 		public Group(String name) {
 			this.name = name;
 		}
+
+		public int totalCommands() {
+			return commands.size() + children.stream().mapToInt(Group::totalCommands).sum();
+		}
+
+		public int totalChildren() {
+			return children.size() + children.stream().mapToInt(Group::totalChildren).sum();
+		}
 	}
+
+	public record Node(Group group, Group parent, int depth, String path) {}
+
+	public record PreviewLine(String group, boolean newGroup, Entry entry, boolean added) {}
 
 	private static final class Data {
 		List<Group> groups = new ArrayList<>();
 	}
 
+	public static final int MAX_DEPTH = 3;
 	public static final int MAX_COMMAND = 256;
 	public static final int MAX_NOTE = 100;
 	public static final int MAX_NAME = 32;
+	public static final String PATH_SEPARATOR = " › ";
 	private static final String EXPORT_PREFIX = "BSM-CMD:";
+	private static final int MAX_DECOMPRESSED = 4 * 1024 * 1024;
+	public static final long MAX_IMPORT_FILE = 8 * 1024 * 1024;
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static final Gson COMPACT = new Gson();
 	private static CommandStore instance;
@@ -113,14 +130,68 @@ public final class CommandStore {
 		return backup;
 	}
 
+	public static List<Node> flatten(List<Group> groups, boolean skipCollapsed) {
+		List<Node> nodes = new ArrayList<>();
+		walk(groups, null, 0, "", skipCollapsed, nodes);
+		return nodes;
+	}
+
+	private static void walk(List<Group> groups, Group parent, int depth, String prefix, boolean skipCollapsed, List<Node> nodes) {
+		for (Group group : groups) {
+			String path = prefix.isEmpty() ? group.name : prefix + PATH_SEPARATOR + group.name;
+			nodes.add(new Node(group, parent, depth, path));
+			if (!skipCollapsed || !group.collapsed) {
+				walk(group.children, group, depth + 1, path, skipCollapsed, nodes);
+			}
+		}
+	}
+
 	public static String export(List<Group> groups) {
 		Data data = new Data();
 		data.groups = groups;
-		return EXPORT_PREFIX + Base64.getEncoder().encodeToString(COMPACT.toJson(data).getBytes(StandardCharsets.UTF_8));
+		Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
+		deflater.setInput(COMPACT.toJson(data).getBytes(StandardCharsets.UTF_8));
+		deflater.finish();
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+		byte[] buffer = new byte[8192];
+		while (!deflater.finished()) {
+			output.write(buffer, 0, deflater.deflate(buffer));
+		}
+		deflater.end();
+		return EXPORT_PREFIX + Base64.getEncoder().encodeToString(output.toByteArray());
+	}
+
+	private static String inflate(byte[] compressed) throws DataFormatException {
+		Inflater inflater = new Inflater();
+		try {
+			inflater.setInput(compressed);
+			ByteArrayOutputStream output = new ByteArrayOutputStream();
+			byte[] buffer = new byte[8192];
+			while (!inflater.finished()) {
+				int count = inflater.inflate(buffer);
+				if (count == 0 && (inflater.needsInput() || inflater.needsDictionary())) {
+					throw new DataFormatException("Truncated");
+				}
+				output.write(buffer, 0, count);
+				if (output.size() > MAX_DECOMPRESSED) {
+					throw new DataFormatException("Too large");
+				}
+			}
+			return output.toString(StandardCharsets.UTF_8);
+		} finally {
+			inflater.end();
+		}
+	}
+
+	public static boolean looksLikeCode(String text) {
+		return text != null && text.trim().startsWith(EXPORT_PREFIX);
 	}
 
 	public static List<Group> parse(String text) {
 		String trimmed = text == null ? "" : text.trim();
+		if (trimmed.startsWith("﻿")) {
+			trimmed = trimmed.substring(1).trim();
+		}
 		if (trimmed.isEmpty()) {
 			throw new IllegalArgumentException("請貼上指令集代碼");
 		}
@@ -128,54 +199,61 @@ public final class CommandStore {
 		Data data;
 		try {
 			String json = prefixed
-					? new String(Base64.getDecoder().decode(trimmed.substring(EXPORT_PREFIX.length()).trim()), StandardCharsets.UTF_8)
+					? inflate(Base64.getDecoder().decode(trimmed.substring(EXPORT_PREFIX.length()).replaceAll("\\s", "")))
 					: trimmed;
 			data = COMPACT.fromJson(json, Data.class);
-		} catch (RuntimeException e) {
+		} catch (RuntimeException | DataFormatException e) {
 			throw new IllegalArgumentException(prefixed ? "代碼不完整或已損毀，請確認有從頭到尾完整複製" : "這不是有效的指令集代碼，代碼應以 " + EXPORT_PREFIX + " 開頭");
 		}
 		List<Group> groups = sanitize(data);
-		if (groups.stream().allMatch(group -> group.commands.isEmpty())) {
+		if (groups.stream().allMatch(group -> group.totalCommands() == 0)) {
 			throw new IllegalArgumentException("這份指令集裡沒有任何指令");
 		}
 		return groups;
 	}
 
-	public record PreviewLine(String group, boolean newGroup, Entry entry, boolean added) {}
+	public static int merge(List<Group> target, List<Group> incoming) {
+		List<PreviewLine> lines = new ArrayList<>();
+		mergeInto(target, incoming, "", false, lines);
+		return (int) lines.stream().filter(PreviewLine::added).count();
+	}
 
 	public static List<PreviewLine> preview(List<Group> target, List<Group> incoming) {
-		Map<String, Set<String>> existing = new HashMap<>();
-		for (Group group : target) {
-			existing.putIfAbsent(group.name, group.commands.stream().map(entry -> entry.command).collect(Collectors.toCollection(HashSet::new)));
-		}
 		List<PreviewLine> lines = new ArrayList<>();
-		for (Group group : incoming) {
-			boolean newGroup = !existing.containsKey(group.name);
-			Set<String> commands = existing.computeIfAbsent(group.name, name -> new HashSet<>());
-			for (Entry entry : group.commands) {
-				lines.add(new PreviewLine(group.name, newGroup, entry, commands.add(entry.command)));
-			}
-		}
+		mergeInto(copy(target), incoming, "", false, lines);
 		return lines;
 	}
 
-	public static int merge(List<Group> target, List<Group> incoming) {
-		int added = 0;
+	private static void mergeInto(List<Group> target, List<Group> incoming, String prefix, boolean parentNew, List<PreviewLine> lines) {
 		for (Group group : incoming) {
+			String path = prefix.isEmpty() ? group.name : prefix + PATH_SEPARATOR + group.name;
 			Group existing = target.stream().filter(g -> g.name.equals(group.name)).findFirst().orElse(null);
-			if (existing == null) {
+			boolean isNew = existing == null;
+			if (isNew) {
 				existing = new Group(group.name);
 				target.add(existing);
 			}
 			for (Entry entry : group.commands) {
 				Group finalExisting = existing;
-				if (finalExisting.commands.stream().noneMatch(e -> e.command.equals(entry.command))) {
-					finalExisting.commands.add(entry);
-					added++;
+				boolean added = finalExisting.commands.stream().noneMatch(e -> e.command.equals(entry.command));
+				if (added) {
+					finalExisting.commands.add(new Entry(entry.command, entry.note));
 				}
+				lines.add(new PreviewLine(path, isNew || parentNew, entry, added));
 			}
+			mergeInto(existing.children, group.children, path, isNew || parentNew, lines);
 		}
-		return added;
+	}
+
+	private static List<Group> copy(List<Group> groups) {
+		List<Group> result = new ArrayList<>();
+		for (Group group : groups) {
+			Group clone = new Group(group.name);
+			group.commands.forEach(entry -> clone.commands.add(new Entry(entry.command, entry.note)));
+			clone.children = copy(group.children);
+			result.add(clone);
+		}
+		return result;
 	}
 
 	public static String cleanCommand(String command) {
@@ -195,23 +273,47 @@ public final class CommandStore {
 	}
 
 	private static List<Group> sanitize(Data data) {
+		return data == null ? new ArrayList<>() : sanitize(data.groups, 0);
+	}
+
+	private static List<Group> sanitize(List<Group> groups, int depth) {
 		List<Group> result = new ArrayList<>();
-		if (data == null || data.groups == null) {
+		if (groups == null) {
 			return result;
 		}
-		for (Group group : data.groups.stream().filter(Objects::nonNull).toList()) {
+		for (Group group : groups.stream().filter(Objects::nonNull).toList()) {
 			String name = cleanText(group.name, MAX_NAME);
 			Group clean = new Group(name.isEmpty() ? "未命名" : name);
-			if (group.commands != null) {
-				for (Entry entry : group.commands.stream().filter(Objects::nonNull).toList()) {
-					String command = cleanCommand(entry.command);
-					if (!command.isEmpty()) {
-						clean.commands.add(new Entry(command, cleanText(entry.note, MAX_NOTE)));
-					}
-				}
+			addCommands(clean, group.commands);
+			if (depth < MAX_DEPTH) {
+				clean.children = sanitize(group.children, depth + 1);
+			} else {
+				flattenInto(clean, group.children);
 			}
 			result.add(clean);
 		}
 		return result;
+	}
+
+	private static void addCommands(Group target, List<Entry> entries) {
+		if (entries == null) {
+			return;
+		}
+		for (Entry entry : entries.stream().filter(Objects::nonNull).toList()) {
+			String command = cleanCommand(entry.command);
+			if (!command.isEmpty()) {
+				target.commands.add(new Entry(command, cleanText(entry.note, MAX_NOTE)));
+			}
+		}
+	}
+
+	private static void flattenInto(Group target, List<Group> children) {
+		if (children == null) {
+			return;
+		}
+		for (Group child : children.stream().filter(Objects::nonNull).toList()) {
+			addCommands(target, child.commands);
+			flattenInto(target, child.children);
+		}
 	}
 }

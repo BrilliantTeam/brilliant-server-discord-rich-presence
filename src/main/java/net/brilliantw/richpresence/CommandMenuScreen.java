@@ -22,7 +22,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 public final class CommandMenuScreen extends Screen {
-	private record Row(CommandStore.Group group, int index, CommandStore.Entry entry) {}
+	private record Row(CommandStore.Node node, int index, CommandStore.Entry entry) {}
 
 	private record Deleted(CommandStore.Group group, int index, CommandStore.Entry entry) {}
 
@@ -46,10 +46,25 @@ public final class CommandMenuScreen extends Screen {
 		}
 	}
 
+	private enum GroupIcon {
+		DELETE("✕", "刪除分組"),
+		RENAME("✎", "重新命名分組"),
+		ADD_CHILD("＋", "新增子分組");
+
+		final String symbol;
+		final String description;
+
+		GroupIcon(String symbol, String description) {
+			this.symbol = symbol;
+			this.description = description;
+		}
+	}
+
 	private static final int HEADER = 26;
 	private static final int FOOTER = 16;
-	private static final int SIDEBAR = 112;
+	private static final int SIDEBAR = 132;
 	private static final int GROUP_ROW = 18;
+	private static final int INDENT = 8;
 	private static final int LIST_HEADER = 20;
 	private static final int CARD = 26;
 	private static final int CARD_GAP = 3;
@@ -60,7 +75,7 @@ public final class CommandMenuScreen extends Screen {
 
 	private final Screen parent;
 	private final CommandStore store = CommandStore.get();
-	private int selected = -1;
+	private CommandStore.Group selected;
 	private String search = "";
 	private double listScroll;
 	private double groupScroll;
@@ -83,8 +98,20 @@ public final class CommandMenuScreen extends Screen {
 		*///?}
 	}
 
+	private List<CommandStore.Node> allNodes() {
+		return CommandStore.flatten(store.groups, false);
+	}
+
+	private List<CommandStore.Node> visibleNodes() {
+		return CommandStore.flatten(store.groups, true);
+	}
+
+	private CommandStore.Node nodeOf(CommandStore.Group group) {
+		return allNodes().stream().filter(node -> node.group() == group).findFirst().orElse(null);
+	}
+
 	private int panelWidth() {
-		return Math.min(width - 16, 520);
+		return Math.min(width - 16, 540);
 	}
 
 	private Rect panel() {
@@ -139,8 +166,18 @@ public final class CommandMenuScreen extends Screen {
 		return new Rect(area.x() + 4, area.y() + position * GROUP_ROW - (int) groupScroll, area.w() - 8, GROUP_ROW);
 	}
 
+	private Rect arrow(Rect row, int depth) {
+		return new Rect(row.x() + 2 + depth * INDENT, row.y() + 2, 9, GROUP_ROW - 4);
+	}
+
+	private List<GroupIcon> icons(CommandStore.Node node) {
+		return node.depth() < CommandStore.MAX_DEPTH
+				? List.of(GroupIcon.DELETE, GroupIcon.RENAME, GroupIcon.ADD_CHILD)
+				: List.of(GroupIcon.DELETE, GroupIcon.RENAME);
+	}
+
 	private Rect groupIcon(Rect row, int slot) {
-		return new Rect(row.x() + row.w() - 14 * (slot + 1), row.y() + 2, 12, GROUP_ROW - 4);
+		return new Rect(row.x() + row.w() - 13 * (slot + 1), row.y() + 2, 12, GROUP_ROW - 4);
 	}
 
 	private Rect card(int position) {
@@ -162,28 +199,32 @@ public final class CommandMenuScreen extends Screen {
 		throw new IllegalStateException();
 	}
 
-	private CommandStore.Group selectedGroup() {
-		return selected >= 0 && selected < store.groups.size() ? store.groups.get(selected) : null;
-	}
-
-	private boolean showGroupTag() {
-		return selectedGroup() == null || !search.isBlank();
+	private String groupTag(Row row) {
+		if (row.node().group() == selected && search.isBlank()) {
+			return "";
+		}
+		CommandStore.Node selectedNode = selected != null && search.isBlank() ? nodeOf(selected) : null;
+		String path = row.node().path();
+		return selectedNode != null && path.startsWith(selectedNode.path() + CommandStore.PATH_SEPARATOR)
+				? path.substring(selectedNode.path().length() + CommandStore.PATH_SEPARATOR.length())
+				: path;
 	}
 
 	private List<Row> rows() {
 		String query = search.trim().toLowerCase(Locale.ROOT);
+		List<CommandStore.Node> nodes = query.isEmpty() && selected != null
+				? CommandStore.flatten(List.of(selected), false).stream().map(node -> nodeOf(node.group())).toList()
+				: allNodes();
 		List<Row> rows = new ArrayList<>();
-		for (CommandStore.Group group : store.groups) {
-			if (query.isEmpty() && selectedGroup() != null && group != selectedGroup()) {
-				continue;
-			}
-			for (int i = 0; i < group.commands.size(); i++) {
-				CommandStore.Entry entry = group.commands.get(i);
+		for (CommandStore.Node node : nodes) {
+			List<CommandStore.Entry> commands = node.group().commands;
+			for (int i = 0; i < commands.size(); i++) {
+				CommandStore.Entry entry = commands.get(i);
 				if (query.isEmpty()
 						|| entry.command.toLowerCase(Locale.ROOT).contains(query)
 						|| entry.note.toLowerCase(Locale.ROOT).contains(query)
-						|| group.name.toLowerCase(Locale.ROOT).contains(query)) {
-					rows.add(new Row(group, i, entry));
+						|| node.path().toLowerCase(Locale.ROOT).contains(query)) {
+					rows.add(new Row(node, i, entry));
 				}
 			}
 		}
@@ -192,8 +233,8 @@ public final class CommandMenuScreen extends Screen {
 
 	@Override
 	protected void init() {
-		if (selected >= store.groups.size()) {
-			selected = -1;
+		if (selected != null && nodeOf(selected) == null) {
+			selected = null;
 		}
 		Rect p = panel();
 		int buttonWidth = 44;
@@ -252,35 +293,49 @@ public final class CommandMenuScreen extends Screen {
 		Rect s = sidebar();
 		gfx.fill(s.x(), s.y(), s.x() + s.w(), s.y() + s.h(), Theme.SIDEBAR);
 		Rect area = groupArea();
-		groupScroll = Math.clamp(groupScroll, 0, Math.max(0, (store.groups.size() + 1) * GROUP_ROW - area.h()));
+		List<CommandStore.Node> nodes = visibleNodes();
+		groupScroll = Math.clamp(groupScroll, 0, Math.max(0, (nodes.size() + 1) * GROUP_ROW - area.h()));
 		gfx.scissor(area.x(), area.y(), area.x() + area.w(), area.y() + area.h());
-		for (int position = 0; position <= store.groups.size(); position++) {
+		for (int position = 0; position <= nodes.size(); position++) {
 			Rect row = groupRow(position);
 			if (row.y() + row.h() < area.y() || row.y() > area.y() + area.h()) {
 				continue;
 			}
-			int value = position - 1;
-			CommandStore.Group group = value >= 0 ? store.groups.get(value) : null;
+			CommandStore.Node node = position == 0 ? null : nodes.get(position - 1);
+			CommandStore.Group group = node == null ? null : node.group();
+			int depth = node == null ? 0 : node.depth();
 			boolean hovered = row.contains(mouseX, mouseY) && area.contains(mouseX, mouseY);
-			boolean isSelected = value == selected;
+			boolean isSelected = group == selected;
 			if (isSelected) {
 				gfx.fill(row.x(), row.y(), row.x() + row.w(), row.y() + row.h(), Theme.SELECTED);
 				gfx.fill(row.x(), row.y(), row.x() + 2, row.y() + row.h(), Theme.ACCENT);
 			} else if (hovered) {
 				gfx.fill(row.x(), row.y(), row.x() + row.w(), row.y() + row.h(), Theme.CARD);
 			}
+
+			if (group != null && !group.children.isEmpty()) {
+				Rect arrow = arrow(row, depth);
+				gfx.text(font, group.collapsed ? "▸" : "▾", arrow.x() + 1, arrow.y() + 3, arrow.contains(mouseX, mouseY) ? Theme.TEXT : Theme.TEXT_DIM);
+				if (arrow.contains(mouseX, mouseY)) {
+					tooltip.add(Component.literal(group.collapsed ? "展開子分組" : "收合子分組"));
+				}
+			}
+
+			int nameX = row.x() + 12 + depth * INDENT;
 			String name = group == null ? "全部指令" : group.name;
-			String count = String.valueOf(group == null ? store.groups.stream().mapToInt(g -> g.commands.size()).sum() : group.commands.size());
-			boolean showIcons = hovered && group != null;
-			int nameWidth = row.w() - 12 - (showIcons ? 30 : font.width(count) + 6);
-			gfx.text(font, font.plainSubstrByWidth(name, nameWidth), row.x() + 7, row.y() + 5, isSelected ? Theme.TEXT : Theme.TEXT_SECONDARY);
+			String count = String.valueOf(group == null ? store.groups.stream().mapToInt(CommandStore.Group::totalCommands).sum() : group.totalCommands());
+			List<GroupIcon> icons = node == null ? List.of() : icons(node);
+			boolean showIcons = hovered && node != null;
+			int reserved = showIcons ? icons.size() * 13 + 2 : font.width(count) + 6;
+			gfx.text(font, font.plainSubstrByWidth(name, row.x() + row.w() - reserved - nameX), nameX, row.y() + 5, isSelected ? Theme.TEXT : Theme.TEXT_SECONDARY);
 			if (showIcons) {
-				drawIcon(gfx, groupIcon(row, 1), "✎", Theme.TEXT, mouseX, mouseY);
-				drawIcon(gfx, groupIcon(row, 0), "✕", Theme.DANGER, mouseX, mouseY);
-				if (groupIcon(row, 1).contains(mouseX, mouseY)) {
-					tooltip.add(Component.literal("重新命名分組"));
-				} else if (groupIcon(row, 0).contains(mouseX, mouseY)) {
-					tooltip.add(Component.literal("刪除分組"));
+				for (int slot = 0; slot < icons.size(); slot++) {
+					GroupIcon icon = icons.get(slot);
+					Rect rect = groupIcon(row, slot);
+					drawIcon(gfx, rect, icon.symbol, icon == GroupIcon.DELETE ? Theme.DANGER : icon == GroupIcon.ADD_CHILD ? Theme.ACCENT : Theme.TEXT, mouseX, mouseY);
+					if (rect.contains(mouseX, mouseY)) {
+						tooltip.add(Component.literal(icon.description));
+					}
 				}
 			} else {
 				gfx.text(font, count, row.x() + row.w() - 5 - font.width(count), row.y() + 5, Theme.TEXT_DIM);
@@ -310,10 +365,14 @@ public final class CommandMenuScreen extends Screen {
 	private void drawList(Gfx gfx, int mouseX, int mouseY, List<Component> tooltip) {
 		Rect m = main();
 		List<Row> rows = rows();
-		String heading = !search.isBlank() ? "搜尋結果" : selectedGroup() == null ? "全部指令" : selectedGroup().name;
-		gfx.text(font, heading, m.x() + 2, m.y() + 4, Theme.TEXT);
-		gfx.text(font, rows.size() + " 個", m.x() + 8 + font.width(heading), m.y() + 4, Theme.TEXT_DIM);
+		CommandStore.Node selectedNode = selected == null ? null : nodeOf(selected);
+		String heading = !search.isBlank() ? "搜尋結果" : selectedNode == null ? "全部指令" : selectedNode.path();
 		Rect add = addCommandChip();
+		String countText = rows.size() + " 個";
+		int headingWidth = add.x() - m.x() - 14 - font.width(countText);
+		String shownHeading = font.plainSubstrByWidth(heading, headingWidth);
+		gfx.text(font, shownHeading, m.x() + 2, m.y() + 4, Theme.TEXT);
+		gfx.text(font, countText, m.x() + 8 + font.width(shownHeading), m.y() + 4, Theme.TEXT_DIM);
 		drawChip(gfx, add, ADD_COMMAND, Theme.ACCENT, mouseX, mouseY);
 
 		Rect l = list();
@@ -339,7 +398,7 @@ public final class CommandMenuScreen extends Screen {
 			}
 
 			int textRight = hovered ? actionChip(card, Action.FILL).x() - 6 : card.x() + card.w() - 8;
-			String tag = showGroupTag() ? row.group().name : "";
+			String tag = groupTag(row);
 			if (!hovered && !tag.isEmpty()) {
 				int tagWidth = Math.min(font.width(tag), card.w() / 3);
 				gfx.text(font, font.plainSubstrByWidth(tag, tagWidth), textRight - tagWidth, card.y() + 4, Theme.TEXT_DIM);
@@ -366,6 +425,7 @@ public final class CommandMenuScreen extends Screen {
 					if (!row.entry().note.isEmpty()) {
 						tooltip.add(Component.literal(row.entry().note).withStyle(ChatFormatting.GRAY));
 					}
+					tooltip.add(Component.literal(row.node().path()).withStyle(ChatFormatting.DARK_GRAY));
 					tooltip.add(Component.literal("點擊執行").withStyle(ChatFormatting.AQUA));
 				}
 			}
@@ -381,7 +441,7 @@ public final class CommandMenuScreen extends Screen {
 
 	private void drawEmptyState(Gfx gfx, Rect l) {
 		List<String> lines;
-		if (store.groups.stream().allMatch(group -> group.commands.isEmpty()) && search.isBlank()) {
+		if (store.groups.stream().allMatch(group -> group.totalCommands() == 0) && search.isBlank()) {
 			lines = List.of("還沒有任何指令", "按右上角「＋ 新增指令」開始建立", "或用「匯入」載入其他玩家分享的指令集");
 		} else if (!search.isBlank()) {
 			lines = List.of("找不到符合「" + search.trim() + "」的指令");
@@ -431,7 +491,7 @@ public final class CommandMenuScreen extends Screen {
 			return true;
 		}
 		if (addGroupRow().contains(mouseX, mouseY)) {
-			openGroupDialog(null);
+			openGroupDialog(null, null);
 			return true;
 		}
 		if (addCommandChip().contains(mouseX, mouseY)) {
@@ -439,23 +499,7 @@ public final class CommandMenuScreen extends Screen {
 			return true;
 		}
 		if (groupArea().contains(mouseX, mouseY)) {
-			for (int position = 0; position <= store.groups.size(); position++) {
-				Rect row = groupRow(position);
-				if (!row.contains(mouseX, mouseY)) {
-					continue;
-				}
-				int value = position - 1;
-				if (value >= 0 && groupIcon(row, 1).contains(mouseX, mouseY)) {
-					openGroupDialog(store.groups.get(value));
-				} else if (value >= 0 && groupIcon(row, 0).contains(mouseX, mouseY)) {
-					deleteGroup(store.groups.get(value));
-				} else {
-					selected = value;
-					listScroll = 0;
-					searchBox.setValue("");
-				}
-				return true;
-			}
+			clickGroup(mouseX, mouseY);
 			return true;
 		}
 		if (list().contains(mouseX, mouseY)) {
@@ -479,6 +523,44 @@ public final class CommandMenuScreen extends Screen {
 			}
 		}
 		return true;
+	}
+
+	private void clickGroup(double mouseX, double mouseY) {
+		List<CommandStore.Node> nodes = visibleNodes();
+		for (int position = 0; position <= nodes.size(); position++) {
+			Rect row = groupRow(position);
+			if (!row.contains(mouseX, mouseY)) {
+				continue;
+			}
+			if (position == 0) {
+				select(null);
+				return;
+			}
+			CommandStore.Node node = nodes.get(position - 1);
+			if (!node.group().children.isEmpty() && arrow(row, node.depth()).contains(mouseX, mouseY)) {
+				node.group().collapsed = !node.group().collapsed;
+				return;
+			}
+			List<GroupIcon> icons = icons(node);
+			for (int slot = 0; slot < icons.size(); slot++) {
+				if (groupIcon(row, slot).contains(mouseX, mouseY)) {
+					switch (icons.get(slot)) {
+						case DELETE -> deleteGroup(node);
+						case RENAME -> openGroupDialog(node.group(), null);
+						case ADD_CHILD -> openGroupDialog(null, node.group());
+					}
+					return;
+				}
+			}
+			select(node.group());
+			return;
+		}
+	}
+
+	private void select(CommandStore.Group group) {
+		selected = group;
+		listScroll = 0;
+		searchBox.setValue("");
 	}
 
 	@Override
@@ -524,31 +606,33 @@ public final class CommandMenuScreen extends Screen {
 		setScreen(new ChatScreen("/" + command + " ", false));
 	}
 
-	private List<String> groupNames() {
-		return store.groups.isEmpty() ? List.of("未分組") : store.groups.stream().map(group -> group.name).toList();
-	}
-
 	private void openCommandDialog(Row row) {
-		int groupIndex = row != null ? store.groups.indexOf(row.group()) : Math.max(0, selected);
+		List<CommandStore.Node> nodes = allNodes();
+		List<String> paths = nodes.isEmpty() ? List.of("未分組") : nodes.stream().map(CommandStore.Node::path).toList();
+		CommandStore.Group preferred = row != null ? row.node().group() : selected;
+		int groupIndex = Math.max(0, nodes.stream().map(CommandStore.Node::group).toList().indexOf(preferred));
 		List<EditDialog.Field> fields = List.of(
 				new EditDialog.Field("指令", "例如 home 或 /warp shop", row != null ? row.entry().command : "", CommandStore.MAX_COMMAND),
 				new EditDialog.Field("備註", "說明這個指令的用途（選填）", row != null ? row.entry().note : "", CommandStore.MAX_NOTE));
-		setScreen(new EditDialog(this, row != null ? "編輯指令" : "新增指令", fields, groupNames(), Math.min(groupIndex, groupNames().size() - 1), (values, index) -> {
+		setScreen(new EditDialog(this, row != null ? "編輯指令" : "新增指令", fields, paths, groupIndex, (values, index) -> {
 			String command = CommandStore.cleanCommand(values.get(0));
 			if (command.isEmpty()) {
 				return "請輸入指令";
 			}
-			if (store.groups.isEmpty()) {
-				store.groups.add(new CommandStore.Group("未分組"));
+			CommandStore.Group target;
+			if (nodes.isEmpty()) {
+				target = new CommandStore.Group("未分組");
+				store.groups.add(target);
+			} else {
+				target = nodes.get(index).group();
 			}
-			CommandStore.Group target = store.groups.get(index);
 			CommandStore.Entry entry = new CommandStore.Entry(command, CommandStore.cleanText(values.get(1), CommandStore.MAX_NOTE));
 			if (row == null) {
 				target.commands.add(entry);
-			} else if (row.group() == target) {
+			} else if (row.node().group() == target) {
 				target.commands.set(row.index(), entry);
 			} else {
-				row.group().commands.remove(row.index());
+				row.node().group().commands.remove(row.index());
 				target.commands.add(entry);
 			}
 			store.save();
@@ -557,51 +641,63 @@ public final class CommandMenuScreen extends Screen {
 		}));
 	}
 
-	private void openGroupDialog(CommandStore.Group group) {
-		List<EditDialog.Field> fields = List.of(new EditDialog.Field("分組名稱", "例如 傳送、商店、常用", group != null ? group.name : "", CommandStore.MAX_NAME));
-		setScreen(new EditDialog(this, group != null ? "重新命名分組" : "新增分組", fields, null, 0, (values, index) -> {
+	private void openGroupDialog(CommandStore.Group editing, CommandStore.Group parentGroup) {
+		String title = editing != null ? "重新命名分組" : parentGroup != null ? "在「" + parentGroup.name + "」下新增子分組" : "新增分組";
+		List<EditDialog.Field> fields = List.of(new EditDialog.Field("分組名稱", "例如 傳送、商店、常用", editing != null ? editing.name : "", CommandStore.MAX_NAME));
+		setScreen(new EditDialog(this, title, fields, null, 0, (values, index) -> {
 			String name = CommandStore.cleanText(values.get(0), CommandStore.MAX_NAME);
 			if (name.isEmpty()) {
 				return "請輸入分組名稱";
 			}
-			if (group == null) {
-				store.groups.add(new CommandStore.Group(name));
-				selected = store.groups.size() - 1;
+			if (editing != null) {
+				editing.name = name;
+				setStatus("已重新命名為「" + name + "」", Theme.SUCCESS);
+			} else {
+				CommandStore.Group group = new CommandStore.Group(name);
+				if (parentGroup != null) {
+					parentGroup.children.add(group);
+					parentGroup.collapsed = false;
+				} else {
+					store.groups.add(group);
+				}
+				selected = group;
 				listScroll = 0;
 				search = "";
 				setStatus("已新增分組「" + name + "」", Theme.SUCCESS);
-			} else {
-				group.name = name;
-				setStatus("已重新命名為「" + name + "」", Theme.SUCCESS);
 			}
 			store.save();
 			return null;
 		}));
 	}
 
-	private void deleteGroup(CommandStore.Group group) {
+	private void deleteGroup(CommandStore.Node node) {
+		CommandStore.Group group = node.group();
+		int children = group.totalChildren();
+		String detail = (children > 0 ? children + " 個子分組、" : "") + group.totalCommands() + " 個指令";
 		setScreen(new ConfirmScreen(confirmed -> {
 			if (confirmed) {
-				store.groups.remove(group);
+				(node.parent() == null ? store.groups : node.parent().children).remove(group);
 				store.save();
-				selected = -1;
+				if (selected != null && nodeOf(selected) == null) {
+					selected = null;
+				}
 				listScroll = 0;
 				setStatus("已刪除分組「" + group.name + "」", Theme.WARNING);
 			}
 			setScreen(this);
-		}, Component.literal("刪除分組「" + group.name + "」"), Component.literal("其中的 " + group.commands.size() + " 個指令會一併刪除，且無法復原。")));
+		}, Component.literal("刪除分組「" + node.path() + "」"), Component.literal("其中的 " + detail + "會一併刪除，且無法復原。")));
 	}
 
 	private void deleteCommand(Row row) {
-		row.group().commands.remove(row.index());
+		row.node().group().commands.remove(row.index());
 		store.save();
 		setStatus("已刪除 /" + row.entry().command, Theme.WARNING);
-		lastDeleted = new Deleted(row.group(), row.index(), row.entry());
+		lastDeleted = new Deleted(row.node().group(), row.index(), row.entry());
 	}
 
 	private void undo() {
 		Deleted deleted = lastDeleted;
-		if (store.groups.contains(deleted.group())) {
+		if (nodeOf(deleted.group()) != null) {
 			deleted.group().commands.add(Math.min(deleted.index(), deleted.group().commands.size()), deleted.entry());
 			store.save();
 			setStatus("已復原 /" + deleted.entry().command, Theme.SUCCESS);
@@ -611,13 +707,13 @@ public final class CommandMenuScreen extends Screen {
 	}
 
 	private void exportAll() {
-		int count = store.groups.stream().mapToInt(group -> group.commands.size()).sum();
+		int count = store.groups.stream().mapToInt(CommandStore.Group::totalCommands).sum();
 		if (count == 0) {
 			setStatus("沒有可匯出的指令", Theme.DANGER);
 			return;
 		}
 		minecraft.keyboardHandler.setClipboard(CommandStore.export(store.groups));
-		setStatus("已複製 " + store.groups.size() + " 個分組、" + count + " 個指令到剪貼簿", Theme.SUCCESS);
+		setStatus("已複製 " + allNodes().size() + " 個分組、" + count + " 個指令到剪貼簿", Theme.SUCCESS);
 	}
 
 	@Override

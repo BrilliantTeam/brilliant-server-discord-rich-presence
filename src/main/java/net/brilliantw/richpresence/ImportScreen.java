@@ -1,5 +1,7 @@
 package net.brilliantw.richpresence;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
 import net.minecraft.ChatFormatting;
@@ -16,7 +18,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 public final class ImportScreen extends Screen {
-	private static final String PREFIX = "BSM-CMD:";
 	private static final int HEADER = 22;
 	private static final int LINE = 11;
 
@@ -30,13 +31,14 @@ public final class ImportScreen extends Screen {
 	private String error = "";
 	private double scroll;
 	private Button importButton;
+	private EditBox input;
 
 	public ImportScreen(Screen parent, Consumer<String> onImported) {
 		super(Component.literal("匯入指令集"));
 		this.parent = parent;
 		this.onImported = onImported;
 		String clipboard = net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard();
-		this.code = clipboard != null && clipboard.trim().startsWith(PREFIX) ? clipboard.trim() : "";
+		this.code = CommandStore.looksLikeCode(clipboard) ? clipboard.trim() : "";
 		update();
 	}
 
@@ -69,7 +71,7 @@ public final class ImportScreen extends Screen {
 	}
 
 	private int existingCount() {
-		return store.groups.stream().mapToInt(group -> group.commands.size()).sum();
+		return store.groups.stream().mapToInt(CommandStore.Group::totalCommands).sum();
 	}
 
 	private void update() {
@@ -106,17 +108,22 @@ public final class ImportScreen extends Screen {
 	protected void init() {
 		int x = left() + 10;
 		int w = panelWidth() - 20;
-		int pasteWidth = 70;
-		EditBox input = addRenderableWidget(new EditBox(font, x, top() + HEADER + 16, w - pasteWidth - 4, 18, Component.literal("指令集代碼")));
+		int pasteWidth = 64;
+		int fileWidth = 64;
+		input = addRenderableWidget(new EditBox(font, x, top() + HEADER + 16, w - pasteWidth - fileWidth - 8, 18, Component.literal("指令集代碼")));
 		input.setMaxLength(Integer.MAX_VALUE);
-		input.setHint(Component.literal("在這裡按 Ctrl+V 貼上 " + PREFIX + "… 代碼").withStyle(ChatFormatting.DARK_GRAY));
+		input.setHint(Component.literal("在這裡按 Ctrl+V 貼上 BSM-CMD:… 代碼").withStyle(ChatFormatting.DARK_GRAY));
 		input.setValue(code);
 		input.setResponder(value -> {
 			code = value;
 			update();
 		});
-		addRenderableWidget(Button.builder(Component.literal("貼上剪貼簿"), b -> input.setValue(minecraft.keyboardHandler.getClipboard().trim()))
-				.bounds(x + w - pasteWidth, top() + HEADER + 15, pasteWidth, 20).build());
+		addRenderableWidget(Button.builder(Component.literal("貼上剪貼簿"), b -> setCode(minecraft.keyboardHandler.getClipboard()))
+				.bounds(x + w - pasteWidth - fileWidth - 4, top() + HEADER + 15, pasteWidth, 20).build());
+		addRenderableWidget(Button.builder(Component.literal("選擇檔案"), b -> FilePicker.openTextFile("選擇指令集 .txt 檔", this::loadFile))
+				.bounds(x + w - fileWidth, top() + HEADER + 15, fileWidth, 20)
+				.tooltip(Tooltip.create(Component.literal("從 .txt 檔匯入，例如 Discord 自動轉成的 message.txt\n也可以直接把檔案拖進遊戲視窗")))
+				.build());
 
 		int modeY = top() + HEADER + 40;
 		int modeWidth = 60;
@@ -135,6 +142,32 @@ public final class ImportScreen extends Screen {
 		importButton = addRenderableWidget(Button.builder(importLabel(), b -> confirm()).bounds(x + buttonWidth + 6, buttonY, buttonWidth, 20).build());
 		importButton.active = addedCount() > 0;
 		setInitialFocus(input);
+	}
+
+	private void setCode(String text) {
+		if (text == null) {
+			return;
+		}
+		String trimmed = text.replace("﻿", "").trim();
+		input.setValue(CommandStore.looksLikeCode(trimmed) ? trimmed.replaceAll("\\s", "") : trimmed.replaceAll("[\\r\\n]+", " "));
+	}
+
+	private void loadFile(Path path) {
+		try {
+			setCode(FilePicker.readText(path));
+			if (code.isBlank()) {
+				error = "檔案是空的：" + path.getFileName();
+			}
+		} catch (IOException e) {
+			error = "無法讀取 " + path.getFileName() + "：" + e.getMessage();
+		}
+	}
+
+	@Override
+	public void onFilesDrop(List<Path> paths) {
+		if (!paths.isEmpty()) {
+			loadFile(paths.getFirst());
+		}
 	}
 
 	private void setReplace(boolean value) {
@@ -163,7 +196,7 @@ public final class ImportScreen extends Screen {
 				CommandMenuScreen.setScreen(this);
 			}
 		}, Component.literal("確定要覆蓋全部指令？"),
-				Component.literal("你現有的 " + store.groups.size() + " 個分組、" + existingCount() + " 個指令會被刪除，換成匯入的 " + addedCount() + " 個指令。\n舊資料會先自動備份到 config 資料夾。")));
+				Component.literal("你現有的 " + CommandStore.flatten(store.groups, false).size() + " 個分組、" + existingCount() + " 個指令會被刪除，換成匯入的 " + addedCount() + " 個指令。\n舊資料會先自動備份到 config 資料夾。")));
 	}
 
 	private void finish(String message) {
@@ -195,6 +228,8 @@ public final class ImportScreen extends Screen {
 		gfx.text(font, title.getString(), x + 10, y + 7, Theme.ACCENT);
 
 		gfx.text(font, "指令集代碼", x + 10, y + HEADER + 5, Theme.TEXT_SECONDARY);
+		String dropHint = "也可以把 .txt 檔拖進視窗";
+		gfx.text(font, dropHint, x + w - 10 - font.width(dropHint), y + HEADER + 5, Theme.TEXT_DIM);
 		gfx.text(font, "方式", x + 10, y + HEADER + 46, Theme.TEXT_SECONDARY);
 
 		int summaryY = previewTop() - 14;
