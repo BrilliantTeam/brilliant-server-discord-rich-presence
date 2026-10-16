@@ -7,6 +7,9 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+  MODRINTH_PROJECT: sQx0NhuP
+  FABRIC_API_PROJECT: P7dR8mSH
 
 permissions:
   contents: write
@@ -62,3 +65,34 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: true
           files: release/*.jar
+
+      - name: 上傳到 Modrinth
+        if: env.MODRINTH_TOKEN != ''
+        env:
+          BUILD: v${{ github.run_number }}
+          CHANGELOG: ${{ github.event.head_commit.message }}
+        run: |
+          mod_version=$(sed -n 's/^mod\.version = "\(.*\)"$/\1/p' stonecutter.properties.toml)
+          for jar in release/*.jar; do
+            mc=$(basename "$jar" .jar)
+            mc=${mc##*+}
+            number="$mod_version-$BUILD-$mc"
+            data=$(jq -n \
+              --arg name "輝煌模組 Brilliant Server Mod $mod_version" \
+              --arg number "$number" \
+              --arg changelog "${CHANGELOG:-$number}" \
+              --arg mc "$mc" \
+              --arg project "$MODRINTH_PROJECT" \
+              --arg fabric "$FABRIC_API_PROJECT" \
+              '{name: $name, version_number: $number, changelog: $changelog, game_versions: [$mc], loaders: ["fabric"],
+                version_type: "release", featured: false, project_id: $project,
+                dependencies: [{project_id: $fabric, dependency_type: "required"}],
+                file_parts: ["file"], primary_file: "file"}')
+            echo "上傳 $number"
+            curl --fail-with-body -sS -X POST https://api.modrinth.com/v2/version \
+              -H "Authorization: $MODRINTH_TOKEN" \
+              -H "User-Agent: BrilliantTeam/brilliant-server-mod (GitHub Actions)" \
+              --form-string "data=$data" \
+              -F "file=@$jar;type=application/java-archive"
+            echo
+          done
