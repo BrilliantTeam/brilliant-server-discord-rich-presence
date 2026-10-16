@@ -453,7 +453,7 @@ public final class AnnouncementScreen extends Screen {
 				if (segment.run().e != null && emoji(segment.run().e).state != RemoteImages.State.FAILED) {
 					RemoteImages.Entry icon = emoji(segment.run().e);
 					if (icon.state == RemoteImages.State.READY) {
-						gfx.image(icon.texture, sx + 1, textY - 1, EMOJI, EMOJI);
+						RemoteImages.draw(gfx, icon, sx + 1, textY - 1, EMOJI, EMOJI);
 					}
 					if (hovered) {
 						tooltip.add(Component.literal(segment.text()));
@@ -479,7 +479,7 @@ public final class AnnouncementScreen extends Screen {
 		boolean hidden = line.sp == 1 && !reveal;
 		boolean hovered = mouseInList && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
 		if (entry.state == RemoteImages.State.READY) {
-			gfx.image(entry.texture, x, y, w, h);
+			RemoteImages.draw(gfx, entry, x, y, w, h);
 		} else {
 			gfx.fill(x, y, x + w, y + h, Theme.CHIP);
 			String text = entry.state == RemoteImages.State.LOADING ? "載入中…" : "無法載入，點擊在瀏覽器開啟";

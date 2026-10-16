@@ -46,7 +46,11 @@ public final class Gfx {
 	}
 
 	public void image(Identifier texture, int x, int y, int width, int height) {
-		graphics.blit(texture, x, y, x + width, y + height, 0f, 1f, 0f, 1f);
+		image(texture, x, y, width, height, 0f, 1f, 0f, 1f);
+	}
+
+	public void image(Identifier texture, int x, int y, int width, int height, float u0, float u1, float v0, float v1) {
+		graphics.blit(texture, x, y, x + width, y + height, u0, u1, v0, v1);
 	}
 
 	public void tooltip(Font font, List<Component> lines, int x, int y) {

@@ -1,6 +1,8 @@
 package net.brilliantw.richpresence;
 
+import com.google.gson.Gson;
 import com.mojang.blaze3d.platform.NativeImage;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,6 +22,83 @@ public final class RemoteImages {
 		public Identifier texture;
 		public int width;
 		public int height;
+		public Animation animation;
+	}
+
+	public record Animation(int frames, int columns, int frameWidth, int frameHeight, int[] delays, int total, int sheetWidth, int sheetHeight) {
+		public int frameAt(long millis) {
+			long time = millis % total;
+			for (int i = 0; i < frames; i++) {
+				time -= delays[i];
+				if (time < 0) {
+					return i;
+				}
+			}
+			return frames - 1;
+		}
+	}
+
+	private static final class AnimationMeta {
+		int n;
+		int cols;
+		int fw;
+		int fh;
+		double[] d;
+	}
+
+	private static final String ANIMATION_KEY = "bsm-anim";
+	private static final Gson GSON = new Gson();
+
+	public static Animation readAnimation(byte[] png, int sheetWidth, int sheetHeight) {
+		int at = 8;
+		while (at + 8 <= png.length) {
+			int length = ((png[at] & 0xFF) << 24) | ((png[at + 1] & 0xFF) << 16) | ((png[at + 2] & 0xFF) << 8) | (png[at + 3] & 0xFF);
+			String type = new String(png, at + 4, 4, StandardCharsets.ISO_8859_1);
+			if (length < 0 || at + 12 + length > png.length || type.equals("IDAT")) {
+				return null;
+			}
+			if (type.equals("tEXt")) {
+				String text = new String(png, at + 8, length, StandardCharsets.ISO_8859_1);
+				int split = text.indexOf('\0');
+				if (split > 0 && text.substring(0, split).equals(ANIMATION_KEY)) {
+					try {
+						AnimationMeta meta = GSON.fromJson(text.substring(split + 1), AnimationMeta.class);
+						if (meta == null || meta.n < 2 || meta.cols < 1 || meta.fw < 1 || meta.fh < 1 || meta.d == null || meta.d.length != meta.n
+								|| meta.cols * meta.fw > sheetWidth || ((meta.n + meta.cols - 1) / meta.cols) * meta.fh > sheetHeight) {
+							return null;
+						}
+						int[] delays = new int[meta.n];
+						int total = 0;
+						for (int i = 0; i < meta.n; i++) {
+							delays[i] = (int) Math.max(20, Math.round(meta.d[i]));
+							total += delays[i];
+						}
+						return new Animation(meta.n, meta.cols, meta.fw, meta.fh, delays, total, sheetWidth, sheetHeight);
+					} catch (Exception e) {
+						return null;
+					}
+				}
+			}
+			at += 12 + length;
+		}
+		return null;
+	}
+
+	public static void draw(Gfx gfx, Identifier texture, Animation animation, int x, int y, int width, int height) {
+		if (animation == null) {
+			gfx.image(texture, x, y, width, height);
+			return;
+		}
+		int frame = animation.frameAt(System.currentTimeMillis());
+		float u0 = (float) (frame % animation.columns() * animation.frameWidth()) / animation.sheetWidth();
+		float v0 = (float) (frame / animation.columns() * animation.frameHeight()) / animation.sheetHeight();
+		float u1 = u0 + (float) animation.frameWidth() / animation.sheetWidth();
+		float v1 = v0 + (float) animation.frameHeight() / animation.sheetHeight();
+		gfx.image(texture, x, y, width, height, u0, u1, v0, v1);
+	}
+
+	public static void draw(Gfx gfx, Entry entry, int x, int y, int width, int height) {
+		draw(gfx, entry.texture, entry.animation, x, y, width, height);
 	}
 
 	private static final String MEDIA_PREFIX = "/api/announcements/media?";
@@ -74,8 +153,9 @@ public final class RemoteImages {
 			if (ok && CACHE.get(key) == created) {
 				try {
 					NativeImage image = NativeImage.read(response.body());
-					created.width = image.getWidth();
-					created.height = image.getHeight();
+					created.animation = readAnimation(response.body(), image.getWidth(), image.getHeight());
+					created.width = created.animation != null ? created.animation.frameWidth() : image.getWidth();
+					created.height = created.animation != null ? created.animation.frameHeight() : image.getHeight();
 					created.texture = Identifier.fromNamespaceAndPath("brilliant-server-mod", "announcement/" + counter++);
 					Minecraft.getInstance().getTextureManager().register(created.texture, new DynamicTexture(() -> "brilliant-server-mod announcement image", image));
 					created.state = State.READY;

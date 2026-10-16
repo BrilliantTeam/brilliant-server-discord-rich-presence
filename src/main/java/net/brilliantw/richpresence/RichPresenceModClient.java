@@ -22,6 +22,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 		});
 
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> presence.stop());
+		DiscordImageLinks.register();
 	}
 
 	public static boolean isOnBrilliantServer() {
