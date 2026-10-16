@@ -147,7 +147,7 @@ public final class EmojiPicker {
 	}
 	*///?}
 
-	static void close() {
+	public static void close() {
 		open = false;
 	}
 

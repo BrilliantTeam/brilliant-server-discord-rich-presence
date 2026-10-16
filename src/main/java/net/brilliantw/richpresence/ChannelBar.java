@@ -68,7 +68,7 @@ public final class ChannelBar {
 		return RichPresenceModClient.isOnBrilliantServer();
 	}
 
-	static void close() {
+	public static void close() {
 		open = false;
 	}
 
