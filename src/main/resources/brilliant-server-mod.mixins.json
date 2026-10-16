@@ -3,6 +3,7 @@
 	"package": "net.brilliantw.richpresence.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
+		"ChatScreenMixin",
 		"RecipeDisplayEntryMixin",
 		"StackedItemContentsMixin"
 	],
