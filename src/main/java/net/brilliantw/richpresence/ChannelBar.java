@@ -53,6 +53,7 @@ public final class ChannelBar {
 	);
 
 	private static final String TOGGLE_LABEL = "頻道設定";
+	private static final String COMMANDS_LABEL = "自訂指令";
 	private static final int HEIGHT = 14;
 	private static final int GAP = 2;
 	private static final int PADDING = 3;
@@ -101,6 +102,12 @@ public final class ChannelBar {
 	private static Button<Void> toggle(Font font, ChatScreen screen) {
 		int width = buttonWidth(font, TOGGLE_LABEL);
 		return new Button<>(screen.width - 2 - EMOJI_BUTTON - GAP - width, barY(screen), width, HEIGHT, null);
+	}
+
+	private static Button<Void> commandsButton(Font font, ChatScreen screen) {
+		Button<Void> toggle = toggle(font, screen);
+		int width = buttonWidth(font, COMMANDS_LABEL);
+		return new Button<>(toggle.x() - GAP - width, toggle.y(), width, HEIGHT, null);
 	}
 
 	private static int labelWidth(Font font) {
@@ -162,6 +169,14 @@ public final class ChannelBar {
 		graphics.fill(toggle.x(), toggle.y(), toggle.x() + toggle.width(), toggle.y() + toggle.height(), open || toggleHovered ? 0xC0505050 : 0x80000000);
 		EmojiPicker.text(graphics, font, TOGGLE_LABEL, toggle.x() + 4, toggle.y() + 3, SYSTEM);
 
+		Button<Void> commands = commandsButton(font, screen);
+		boolean commandsHovered = commands.contains(mouseX, mouseY);
+		graphics.fill(commands.x(), commands.y(), commands.x() + commands.width(), commands.y() + commands.height(), commandsHovered ? 0xC0505050 : 0x80000000);
+		EmojiPicker.text(graphics, font, COMMANDS_LABEL, commands.x() + 4, commands.y() + 3, 0xFFCFFFC0);
+		if (commandsHovered) {
+			tooltip = Component.literal("開啟自訂指令選單");
+		}
+
 		if (open) {
 			Button<Void> panel = panel(font, screen);
 			graphics.fill(panel.x(), panel.y(), panel.x() + panel.width(), panel.y() + panel.height(), 0xD0000000);
@@ -195,6 +210,12 @@ public final class ChannelBar {
 				selected = chip.value();
 				return true;
 			}
+		}
+		if (commandsButton(font, screen).contains(mouseX, mouseY)) {
+			close();
+			EmojiPicker.close();
+			CommandMenuScreen.setScreen(new CommandMenuScreen(screen));
+			return true;
 		}
 		if (toggle(font, screen).contains(mouseX, mouseY)) {
 			open = !open;

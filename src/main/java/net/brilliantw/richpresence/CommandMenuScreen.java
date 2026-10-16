@@ -1,0 +1,632 @@
+package net.brilliantw.richpresence;
+
+import com.mojang.blaze3d.platform.InputConstants;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+//? if >=26.1 {
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+//?} else {
+/*import net.minecraft.client.gui.GuiGraphics;
+*///?}
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.ConfirmScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+
+public final class CommandMenuScreen extends Screen {
+	private record Row(CommandStore.Group group, int index, CommandStore.Entry entry) {}
+
+	private record Deleted(CommandStore.Group group, int index, CommandStore.Entry entry) {}
+
+	private record Rect(int x, int y, int w, int h) {
+		boolean contains(double mouseX, double mouseY) {
+			return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
+		}
+	}
+
+	private enum Action {
+		FILL("填入", "放進聊天欄，可補上參數再送出"),
+		EDIT("編輯", "修改指令、備註或分組"),
+		DELETE("刪除", "刪除後可在下方按「復原」");
+
+		final String label;
+		final String description;
+
+		Action(String label, String description) {
+			this.label = label;
+			this.description = description;
+		}
+	}
+
+	private static final int HEADER = 26;
+	private static final int FOOTER = 16;
+	private static final int SIDEBAR = 112;
+	private static final int GROUP_ROW = 18;
+	private static final int LIST_HEADER = 20;
+	private static final int CARD = 26;
+	private static final int CARD_GAP = 3;
+	private static final int CHIP_HEIGHT = 14;
+	private static final String ADD_COMMAND = "＋ 新增指令";
+	private static final String ADD_GROUP = "＋ 新增分組";
+	private static final String UNDO = "復原";
+
+	private final Screen parent;
+	private final CommandStore store = CommandStore.get();
+	private int selected = -1;
+	private String search = "";
+	private double listScroll;
+	private double groupScroll;
+	private String status = "";
+	private int statusColor = Theme.TEXT_SECONDARY;
+	private long statusUntil;
+	private Deleted lastDeleted;
+	private EditBox searchBox;
+
+	public CommandMenuScreen(Screen parent) {
+		super(Component.literal("自訂指令"));
+		this.parent = parent;
+	}
+
+	static void setScreen(Screen screen) {
+		//? if >=26.2 {
+		Minecraft.getInstance().gui.setScreen(screen);
+		//?} else {
+		/*Minecraft.getInstance().setScreen(screen);
+		*///?}
+	}
+
+	private int panelWidth() {
+		return Math.min(width - 16, 520);
+	}
+
+	private Rect panel() {
+		return new Rect((width - panelWidth()) / 2, 8, panelWidth(), height - 16);
+	}
+
+	private Rect sidebar() {
+		Rect p = panel();
+		return new Rect(p.x(), p.y() + HEADER, SIDEBAR, p.h() - HEADER - FOOTER);
+	}
+
+	private Rect groupArea() {
+		Rect s = sidebar();
+		return new Rect(s.x(), s.y() + 4, s.w(), s.h() - GROUP_ROW - 12);
+	}
+
+	private Rect addGroupRow() {
+		Rect s = sidebar();
+		return new Rect(s.x() + 4, s.y() + s.h() - GROUP_ROW - 4, s.w() - 8, GROUP_ROW);
+	}
+
+	private Rect main() {
+		Rect p = panel();
+		int x = p.x() + SIDEBAR + 8;
+		return new Rect(x, p.y() + HEADER + 4, p.x() + p.w() - 8 - x, p.h() - HEADER - FOOTER - 8);
+	}
+
+	private Rect list() {
+		Rect m = main();
+		return new Rect(m.x(), m.y() + LIST_HEADER, m.w(), m.h() - LIST_HEADER);
+	}
+
+	private Rect addCommandChip() {
+		Rect m = main();
+		int w = font.width(ADD_COMMAND) + 12;
+		return new Rect(m.x() + m.w() - w, m.y() + 1, w, CHIP_HEIGHT);
+	}
+
+	private Rect footer() {
+		Rect p = panel();
+		return new Rect(p.x(), p.y() + p.h() - FOOTER, p.w(), FOOTER);
+	}
+
+	private Rect undoChip() {
+		Rect f = footer();
+		int w = font.width(UNDO) + 10;
+		return new Rect(f.x() + 8 + font.width(status) + 6, f.y() + 1, w, CHIP_HEIGHT);
+	}
+
+	private Rect groupRow(int position) {
+		Rect area = groupArea();
+		return new Rect(area.x() + 4, area.y() + position * GROUP_ROW - (int) groupScroll, area.w() - 8, GROUP_ROW);
+	}
+
+	private Rect groupIcon(Rect row, int slot) {
+		return new Rect(row.x() + row.w() - 14 * (slot + 1), row.y() + 2, 12, GROUP_ROW - 4);
+	}
+
+	private Rect card(int position) {
+		Rect l = list();
+		return new Rect(l.x(), l.y() + position * (CARD + CARD_GAP) - (int) listScroll, l.w() - 4, CARD);
+	}
+
+	private Rect actionChip(Rect card, Action action) {
+		int right = card.x() + card.w() - 6;
+		for (int i = Action.values().length - 1; i >= 0; i--) {
+			Action current = Action.values()[i];
+			int w = font.width(current.label) + 10;
+			right -= w;
+			if (current == action) {
+				return new Rect(right, card.y() + (CARD - CHIP_HEIGHT) / 2, w, CHIP_HEIGHT);
+			}
+			right -= 3;
+		}
+		throw new IllegalStateException();
+	}
+
+	private CommandStore.Group selectedGroup() {
+		return selected >= 0 && selected < store.groups.size() ? store.groups.get(selected) : null;
+	}
+
+	private boolean showGroupTag() {
+		return selectedGroup() == null || !search.isBlank();
+	}
+
+	private List<Row> rows() {
+		String query = search.trim().toLowerCase(Locale.ROOT);
+		List<Row> rows = new ArrayList<>();
+		for (CommandStore.Group group : store.groups) {
+			if (query.isEmpty() && selectedGroup() != null && group != selectedGroup()) {
+				continue;
+			}
+			for (int i = 0; i < group.commands.size(); i++) {
+				CommandStore.Entry entry = group.commands.get(i);
+				if (query.isEmpty()
+						|| entry.command.toLowerCase(Locale.ROOT).contains(query)
+						|| entry.note.toLowerCase(Locale.ROOT).contains(query)
+						|| group.name.toLowerCase(Locale.ROOT).contains(query)) {
+					rows.add(new Row(group, i, entry));
+				}
+			}
+		}
+		return rows;
+	}
+
+	@Override
+	protected void init() {
+		if (selected >= store.groups.size()) {
+			selected = -1;
+		}
+		Rect p = panel();
+		int buttonWidth = 44;
+		int titleWidth = font.width(title) + 20;
+		searchBox = addRenderableWidget(new EditBox(font, p.x() + titleWidth, p.y() + 4, p.w() - titleWidth - (buttonWidth + 4) * 2 - 8, 18, Component.literal("搜尋")));
+		searchBox.setMaxLength(64);
+		searchBox.setHint(Component.literal("搜尋指令、備註或分組…  按 Enter 執行第一個").withStyle(ChatFormatting.DARK_GRAY));
+		searchBox.setValue(search);
+		searchBox.setResponder(value -> {
+			search = value;
+			listScroll = 0;
+		});
+		addRenderableWidget(Button.builder(Component.literal("匯入"), b -> setScreen(new ImportScreen(this, message -> setStatus(message, Theme.SUCCESS))))
+				.bounds(p.x() + p.w() - 8 - buttonWidth * 2 - 4, p.y() + 3, buttonWidth, 20)
+				.tooltip(Tooltip.create(Component.literal("貼上其他玩家分享的指令集代碼\n可預覽內容，選擇合併或覆蓋")))
+				.build());
+		addRenderableWidget(Button.builder(Component.literal("匯出"), b -> exportAll())
+				.bounds(p.x() + p.w() - 8 - buttonWidth, p.y() + 3, buttonWidth, 20)
+				.tooltip(Tooltip.create(Component.literal("把全部分組複製到剪貼簿\n貼給其他玩家即可匯入")))
+				.build());
+		setInitialFocus(searchBox);
+	}
+
+	//? if >=26.1 {
+	@Override
+	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+		draw(new Gfx(graphics), mouseX, mouseY);
+		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+	}
+	//?} else {
+	/*@Override
+	public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+		draw(new Gfx(graphics), mouseX, mouseY);
+		super.render(graphics, mouseX, mouseY, partialTick);
+	}
+	*///?}
+
+	private void draw(Gfx gfx, int mouseX, int mouseY) {
+		Rect p = panel();
+		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + p.h(), Theme.PANEL);
+		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + HEADER, Theme.HEADER);
+		gfx.fill(p.x(), p.y() + HEADER - 1, p.x() + p.w(), p.y() + HEADER, Theme.ACCENT_DIM);
+		gfx.text(font, title.getString(), p.x() + 10, p.y() + 9, Theme.ACCENT);
+
+		List<Component> tooltip = new ArrayList<>();
+		drawSidebar(gfx, mouseX, mouseY, tooltip);
+		drawList(gfx, mouseX, mouseY, tooltip);
+		drawFooter(gfx, mouseX, mouseY);
+
+		if (!tooltip.isEmpty()) {
+			gfx.tooltip(font, tooltip, mouseX, mouseY);
+		}
+	}
+
+	private void drawSidebar(Gfx gfx, int mouseX, int mouseY, List<Component> tooltip) {
+		Rect s = sidebar();
+		gfx.fill(s.x(), s.y(), s.x() + s.w(), s.y() + s.h(), Theme.SIDEBAR);
+		Rect area = groupArea();
+		groupScroll = Math.clamp(groupScroll, 0, Math.max(0, (store.groups.size() + 1) * GROUP_ROW - area.h()));
+		gfx.scissor(area.x(), area.y(), area.x() + area.w(), area.y() + area.h());
+		for (int position = 0; position <= store.groups.size(); position++) {
+			Rect row = groupRow(position);
+			if (row.y() + row.h() < area.y() || row.y() > area.y() + area.h()) {
+				continue;
+			}
+			int value = position - 1;
+			CommandStore.Group group = value >= 0 ? store.groups.get(value) : null;
+			boolean hovered = row.contains(mouseX, mouseY) && area.contains(mouseX, mouseY);
+			boolean isSelected = value == selected;
+			if (isSelected) {
+				gfx.fill(row.x(), row.y(), row.x() + row.w(), row.y() + row.h(), Theme.SELECTED);
+				gfx.fill(row.x(), row.y(), row.x() + 2, row.y() + row.h(), Theme.ACCENT);
+			} else if (hovered) {
+				gfx.fill(row.x(), row.y(), row.x() + row.w(), row.y() + row.h(), Theme.CARD);
+			}
+			String name = group == null ? "全部指令" : group.name;
+			String count = String.valueOf(group == null ? store.groups.stream().mapToInt(g -> g.commands.size()).sum() : group.commands.size());
+			boolean showIcons = hovered && group != null;
+			int nameWidth = row.w() - 12 - (showIcons ? 30 : font.width(count) + 6);
+			gfx.text(font, font.plainSubstrByWidth(name, nameWidth), row.x() + 7, row.y() + 5, isSelected ? Theme.TEXT : Theme.TEXT_SECONDARY);
+			if (showIcons) {
+				drawIcon(gfx, groupIcon(row, 1), "✎", Theme.TEXT, mouseX, mouseY);
+				drawIcon(gfx, groupIcon(row, 0), "✕", Theme.DANGER, mouseX, mouseY);
+				if (groupIcon(row, 1).contains(mouseX, mouseY)) {
+					tooltip.add(Component.literal("重新命名分組"));
+				} else if (groupIcon(row, 0).contains(mouseX, mouseY)) {
+					tooltip.add(Component.literal("刪除分組"));
+				}
+			} else {
+				gfx.text(font, count, row.x() + row.w() - 5 - font.width(count), row.y() + 5, Theme.TEXT_DIM);
+			}
+		}
+		gfx.endScissor();
+
+		Rect add = addGroupRow();
+		if (add.contains(mouseX, mouseY)) {
+			gfx.fill(add.x(), add.y(), add.x() + add.w(), add.y() + add.h(), Theme.CARD);
+		}
+		gfx.text(font, ADD_GROUP, add.x() + 7, add.y() + 5, Theme.ACCENT);
+	}
+
+	private void drawIcon(Gfx gfx, Rect icon, String symbol, int color, int mouseX, int mouseY) {
+		if (icon.contains(mouseX, mouseY)) {
+			gfx.fill(icon.x(), icon.y(), icon.x() + icon.w(), icon.y() + icon.h(), Theme.CHIP_HOVER);
+		}
+		gfx.text(font, symbol, icon.x() + (icon.w() - font.width(symbol)) / 2 + 1, icon.y() + 3, color);
+	}
+
+	private void drawChip(Gfx gfx, Rect chip, String label, int color, int mouseX, int mouseY) {
+		gfx.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + chip.h(), chip.contains(mouseX, mouseY) ? Theme.CHIP_HOVER : Theme.CHIP);
+		gfx.text(font, label, chip.x() + 5, chip.y() + 3, color);
+	}
+
+	private void drawList(Gfx gfx, int mouseX, int mouseY, List<Component> tooltip) {
+		Rect m = main();
+		List<Row> rows = rows();
+		String heading = !search.isBlank() ? "搜尋結果" : selectedGroup() == null ? "全部指令" : selectedGroup().name;
+		gfx.text(font, heading, m.x() + 2, m.y() + 4, Theme.TEXT);
+		gfx.text(font, rows.size() + " 個", m.x() + 8 + font.width(heading), m.y() + 4, Theme.TEXT_DIM);
+		Rect add = addCommandChip();
+		drawChip(gfx, add, ADD_COMMAND, Theme.ACCENT, mouseX, mouseY);
+
+		Rect l = list();
+		int contentHeight = rows.size() * (CARD + CARD_GAP) - CARD_GAP;
+		listScroll = Math.clamp(listScroll, 0, Math.max(0, contentHeight - l.h()));
+
+		if (rows.isEmpty()) {
+			drawEmptyState(gfx, l);
+			return;
+		}
+
+		gfx.scissor(l.x(), l.y(), l.x() + l.w(), l.y() + l.h());
+		for (int i = 0; i < rows.size(); i++) {
+			Rect card = card(i);
+			if (card.y() + card.h() < l.y() || card.y() > l.y() + l.h()) {
+				continue;
+			}
+			Row row = rows.get(i);
+			boolean hovered = card.contains(mouseX, mouseY) && l.contains(mouseX, mouseY);
+			gfx.fill(card.x(), card.y(), card.x() + card.w(), card.y() + card.h(), hovered ? Theme.CARD_HOVER : Theme.CARD);
+			if (hovered) {
+				gfx.fill(card.x(), card.y(), card.x() + 2, card.y() + card.h(), Theme.ACCENT);
+			}
+
+			int textRight = hovered ? actionChip(card, Action.FILL).x() - 6 : card.x() + card.w() - 8;
+			String tag = showGroupTag() ? row.group().name : "";
+			if (!hovered && !tag.isEmpty()) {
+				int tagWidth = Math.min(font.width(tag), card.w() / 3);
+				gfx.text(font, font.plainSubstrByWidth(tag, tagWidth), textRight - tagWidth, card.y() + 4, Theme.TEXT_DIM);
+				textRight -= tagWidth + 8;
+			}
+			int textWidth = textRight - card.x() - 8;
+			gfx.text(font, font.plainSubstrByWidth("/" + row.entry().command, textWidth), card.x() + 8, card.y() + 4, Theme.TEXT);
+			String note = row.entry().note.isEmpty() ? "沒有備註" : row.entry().note;
+			gfx.text(font, font.plainSubstrByWidth(note, textWidth), card.x() + 8, card.y() + 15, row.entry().note.isEmpty() ? Theme.TEXT_DIM : Theme.TEXT_SECONDARY);
+
+			if (hovered) {
+				Action hoveredAction = null;
+				for (Action action : Action.values()) {
+					Rect chip = actionChip(card, action);
+					drawChip(gfx, chip, action.label, action == Action.DELETE ? Theme.DANGER : Theme.TEXT, mouseX, mouseY);
+					if (chip.contains(mouseX, mouseY)) {
+						hoveredAction = action;
+					}
+				}
+				if (hoveredAction != null) {
+					tooltip.add(Component.literal(hoveredAction.description));
+				} else {
+					tooltip.add(Component.literal("/" + row.entry().command));
+					if (!row.entry().note.isEmpty()) {
+						tooltip.add(Component.literal(row.entry().note).withStyle(ChatFormatting.GRAY));
+					}
+					tooltip.add(Component.literal("點擊執行").withStyle(ChatFormatting.AQUA));
+				}
+			}
+		}
+		gfx.endScissor();
+
+		if (contentHeight > l.h()) {
+			int barHeight = Math.max(16, l.h() * l.h() / contentHeight);
+			int barY = l.y() + (int) ((l.h() - barHeight) * (listScroll / (contentHeight - l.h())));
+			gfx.fill(l.x() + l.w() - 2, barY, l.x() + l.w(), barY + barHeight, Theme.CHIP_HOVER);
+		}
+	}
+
+	private void drawEmptyState(Gfx gfx, Rect l) {
+		List<String> lines;
+		if (store.groups.stream().allMatch(group -> group.commands.isEmpty()) && search.isBlank()) {
+			lines = List.of("還沒有任何指令", "按右上角「＋ 新增指令」開始建立", "或用「匯入」載入其他玩家分享的指令集");
+		} else if (!search.isBlank()) {
+			lines = List.of("找不到符合「" + search.trim() + "」的指令");
+		} else {
+			lines = List.of("這個分組還沒有指令", "按右上角「＋ 新增指令」加入");
+		}
+		int y = l.y() + Math.max(10, (l.h() - lines.size() * 12) / 3);
+		for (int i = 0; i < lines.size(); i++) {
+			String line = lines.get(i);
+			gfx.text(font, line, l.x() + (l.w() - font.width(line)) / 2, y + i * 12, i == 0 ? Theme.TEXT_SECONDARY : Theme.TEXT_DIM);
+		}
+	}
+
+	private void drawFooter(Gfx gfx, int mouseX, int mouseY) {
+		Rect f = footer();
+		gfx.fill(f.x(), f.y(), f.x() + f.w(), f.y() + 1, Theme.HEADER);
+		boolean showStatus = System.currentTimeMillis() < statusUntil;
+		if (showStatus) {
+			gfx.text(font, status, f.x() + 8, f.y() + 4, statusColor);
+			if (lastDeleted != null) {
+				drawChip(gfx, undoChip(), UNDO, Theme.ACCENT, mouseX, mouseY);
+			}
+		}
+		String hint = "點擊卡片執行 · 滾輪捲動 · Esc 返回";
+		int hintX = f.x() + f.w() - 8 - font.width(hint);
+		if (!showStatus || hintX > undoChip().x() + undoChip().w() + 8) {
+			gfx.text(font, hint, hintX, f.y() + 4, Theme.TEXT_DIM);
+		}
+	}
+
+	@Override
+	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		if (super.mouseClicked(event, doubleClick)) {
+			return true;
+		}
+		if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
+			return false;
+		}
+		double mouseX = event.x();
+		double mouseY = event.y();
+		if (!panel().contains(mouseX, mouseY)) {
+			onClose();
+			return true;
+		}
+		if (lastDeleted != null && System.currentTimeMillis() < statusUntil && undoChip().contains(mouseX, mouseY)) {
+			undo();
+			return true;
+		}
+		if (addGroupRow().contains(mouseX, mouseY)) {
+			openGroupDialog(null);
+			return true;
+		}
+		if (addCommandChip().contains(mouseX, mouseY)) {
+			openCommandDialog(null);
+			return true;
+		}
+		if (groupArea().contains(mouseX, mouseY)) {
+			for (int position = 0; position <= store.groups.size(); position++) {
+				Rect row = groupRow(position);
+				if (!row.contains(mouseX, mouseY)) {
+					continue;
+				}
+				int value = position - 1;
+				if (value >= 0 && groupIcon(row, 1).contains(mouseX, mouseY)) {
+					openGroupDialog(store.groups.get(value));
+				} else if (value >= 0 && groupIcon(row, 0).contains(mouseX, mouseY)) {
+					deleteGroup(store.groups.get(value));
+				} else {
+					selected = value;
+					listScroll = 0;
+					searchBox.setValue("");
+				}
+				return true;
+			}
+			return true;
+		}
+		if (list().contains(mouseX, mouseY)) {
+			List<Row> rows = rows();
+			for (int i = 0; i < rows.size(); i++) {
+				Rect card = card(i);
+				if (!card.contains(mouseX, mouseY)) {
+					continue;
+				}
+				Row row = rows.get(i);
+				if (actionChip(card, Action.FILL).contains(mouseX, mouseY)) {
+					fill(row.entry().command);
+				} else if (actionChip(card, Action.EDIT).contains(mouseX, mouseY)) {
+					openCommandDialog(row);
+				} else if (actionChip(card, Action.DELETE).contains(mouseX, mouseY)) {
+					deleteCommand(row);
+				} else {
+					run(row.entry().command);
+				}
+				return true;
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		if (list().contains(mouseX, mouseY)) {
+			listScroll -= scrollY * (CARD + CARD_GAP);
+			return true;
+		}
+		if (groupArea().contains(mouseX, mouseY)) {
+			groupScroll -= scrollY * GROUP_ROW;
+			return true;
+		}
+		return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+	}
+
+	@Override
+	public boolean keyPressed(KeyEvent event) {
+		if (event.isConfirmation() && searchBox.isFocused() && !search.isBlank()) {
+			List<Row> rows = rows();
+			if (!rows.isEmpty()) {
+				run(rows.getFirst().entry().command);
+			}
+			return true;
+		}
+		return super.keyPressed(event);
+	}
+
+	private void setStatus(String message, int color) {
+		status = message;
+		statusColor = color;
+		statusUntil = System.currentTimeMillis() + 6000;
+		lastDeleted = null;
+	}
+
+	private void run(String command) {
+		if (minecraft.player != null) {
+			minecraft.player.connection.sendCommand(command);
+		}
+		setScreen(null);
+	}
+
+	private void fill(String command) {
+		setScreen(new ChatScreen("/" + command + " ", false));
+	}
+
+	private List<String> groupNames() {
+		return store.groups.isEmpty() ? List.of("未分組") : store.groups.stream().map(group -> group.name).toList();
+	}
+
+	private void openCommandDialog(Row row) {
+		int groupIndex = row != null ? store.groups.indexOf(row.group()) : Math.max(0, selected);
+		List<EditDialog.Field> fields = List.of(
+				new EditDialog.Field("指令", "例如 home 或 /warp shop", row != null ? row.entry().command : "", CommandStore.MAX_COMMAND),
+				new EditDialog.Field("備註", "說明這個指令的用途（選填）", row != null ? row.entry().note : "", CommandStore.MAX_NOTE));
+		setScreen(new EditDialog(this, row != null ? "編輯指令" : "新增指令", fields, groupNames(), Math.min(groupIndex, groupNames().size() - 1), (values, index) -> {
+			String command = CommandStore.cleanCommand(values.get(0));
+			if (command.isEmpty()) {
+				return "請輸入指令";
+			}
+			if (store.groups.isEmpty()) {
+				store.groups.add(new CommandStore.Group("未分組"));
+			}
+			CommandStore.Group target = store.groups.get(index);
+			CommandStore.Entry entry = new CommandStore.Entry(command, CommandStore.cleanText(values.get(1), CommandStore.MAX_NOTE));
+			if (row == null) {
+				target.commands.add(entry);
+			} else if (row.group() == target) {
+				target.commands.set(row.index(), entry);
+			} else {
+				row.group().commands.remove(row.index());
+				target.commands.add(entry);
+			}
+			store.save();
+			setStatus((row == null ? "已新增 /" : "已更新 /") + command, Theme.SUCCESS);
+			return null;
+		}));
+	}
+
+	private void openGroupDialog(CommandStore.Group group) {
+		List<EditDialog.Field> fields = List.of(new EditDialog.Field("分組名稱", "例如 傳送、商店、常用", group != null ? group.name : "", CommandStore.MAX_NAME));
+		setScreen(new EditDialog(this, group != null ? "重新命名分組" : "新增分組", fields, null, 0, (values, index) -> {
+			String name = CommandStore.cleanText(values.get(0), CommandStore.MAX_NAME);
+			if (name.isEmpty()) {
+				return "請輸入分組名稱";
+			}
+			if (group == null) {
+				store.groups.add(new CommandStore.Group(name));
+				selected = store.groups.size() - 1;
+				listScroll = 0;
+				search = "";
+				setStatus("已新增分組「" + name + "」", Theme.SUCCESS);
+			} else {
+				group.name = name;
+				setStatus("已重新命名為「" + name + "」", Theme.SUCCESS);
+			}
+			store.save();
+			return null;
+		}));
+	}
+
+	private void deleteGroup(CommandStore.Group group) {
+		setScreen(new ConfirmScreen(confirmed -> {
+			if (confirmed) {
+				store.groups.remove(group);
+				store.save();
+				selected = -1;
+				listScroll = 0;
+				setStatus("已刪除分組「" + group.name + "」", Theme.WARNING);
+			}
+			setScreen(this);
+		}, Component.literal("刪除分組「" + group.name + "」"), Component.literal("其中的 " + group.commands.size() + " 個指令會一併刪除，且無法復原。")));
+	}
+
+	private void deleteCommand(Row row) {
+		row.group().commands.remove(row.index());
+		store.save();
+		setStatus("已刪除 /" + row.entry().command, Theme.WARNING);
+		lastDeleted = new Deleted(row.group(), row.index(), row.entry());
+	}
+
+	private void undo() {
+		Deleted deleted = lastDeleted;
+		if (store.groups.contains(deleted.group())) {
+			deleted.group().commands.add(Math.min(deleted.index(), deleted.group().commands.size()), deleted.entry());
+			store.save();
+			setStatus("已復原 /" + deleted.entry().command, Theme.SUCCESS);
+		} else {
+			setStatus("原分組已不存在，無法復原", Theme.DANGER);
+		}
+	}
+
+	private void exportAll() {
+		int count = store.groups.stream().mapToInt(group -> group.commands.size()).sum();
+		if (count == 0) {
+			setStatus("沒有可匯出的指令", Theme.DANGER);
+			return;
+		}
+		minecraft.keyboardHandler.setClipboard(CommandStore.export(store.groups));
+		setStatus("已複製 " + store.groups.size() + " 個分組、" + count + " 個指令到剪貼簿", Theme.SUCCESS);
+	}
+
+	@Override
+	public void onClose() {
+		setScreen(parent);
+	}
+
+	@Override
+	public boolean isPauseScreen() {
+		return false;
+	}
+}
