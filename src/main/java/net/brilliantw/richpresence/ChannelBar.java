@@ -65,6 +65,7 @@ public final class ChannelBar {
 	private static final String INTERACT_LABEL = "互動";
 	private static final String COMMANDS_LABEL = "自訂指令";
 	private static final String ANNOUNCEMENTS_LABEL = "公告";
+	private static final String GUIDE_LABEL = "官網";
 	private static final int HEIGHT = 14;
 	private static final int GAP = 2;
 	private static final int PADDING = 3;
@@ -132,10 +133,16 @@ public final class ChannelBar {
 		return new Button<>(commands.x() - GAP - width, commands.y(), width, HEIGHT, null);
 	}
 
-	private static Button<Void> interactButton(Font font, ChatScreen screen) {
+	private static Button<Void> guideButton(Font font, ChatScreen screen) {
 		Button<Void> announcements = announcementsButton(font, screen);
-		int width = buttonWidth(font, INTERACT_LABEL);
+		int width = buttonWidth(font, GUIDE_LABEL);
 		return new Button<>(announcements.x() - GAP - width, announcements.y(), width, HEIGHT, null);
+	}
+
+	private static Button<Void> interactButton(Font font, ChatScreen screen) {
+		Button<Void> guide = guideButton(font, screen);
+		int width = buttonWidth(font, INTERACT_LABEL);
+		return new Button<>(guide.x() - GAP - width, guide.y(), width, HEIGHT, null);
 	}
 
 	private static int labelWidth(Font font) {
@@ -214,6 +221,14 @@ public final class ChannelBar {
 			tooltip = Component.literal(unread > 0 ? "有 " + unread + " 則新公告" : "查看伺服器公告");
 		}
 
+		Button<Void> guide = guideButton(font, screen);
+		boolean guideHovered = guide.contains(mouseX, mouseY);
+		graphics.fill(guide.x(), guide.y(), guide.x() + guide.width(), guide.y() + guide.height(), guideHovered ? 0xC0505050 : 0x80000000);
+		EmojiPicker.text(graphics, font, GUIDE_LABEL, guide.x() + 4, guide.y() + 3, 0xFF7AD3FF);
+		if (guideHovered) {
+			tooltip = Component.literal("搜尋並閱讀輝煌官網文章");
+		}
+
 		Button<Void> interact = interactButton(font, screen);
 		boolean interactHovered = interact.contains(mouseX, mouseY);
 		graphics.fill(interact.x(), interact.y(), interact.x() + interact.width(), interact.y() + interact.height(), openRows == INTERACT_ROWS || interactHovered ? 0xC0505050 : 0x80000000);
@@ -260,6 +275,12 @@ public final class ChannelBar {
 			close();
 			EmojiPicker.close();
 			CommandMenuScreen.setScreen(new AnnouncementScreen(screen));
+			return true;
+		}
+		if (guideButton(font, screen).contains(mouseX, mouseY)) {
+			close();
+			EmojiPicker.close();
+			CommandMenuScreen.setScreen(new GuideScreen(screen));
 			return true;
 		}
 		if (interactButton(font, screen).contains(mouseX, mouseY)) {

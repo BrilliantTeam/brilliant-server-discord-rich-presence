@@ -23,6 +23,7 @@ public final class RemoteImages {
 		public int width;
 		public int height;
 		public Animation animation;
+		long failedAt;
 	}
 
 	public record Animation(int frames, int columns, int frameWidth, int frameHeight, int[] delays, int total, int sheetWidth, int sheetHeight) {
@@ -103,6 +104,7 @@ public final class RemoteImages {
 
 	private static final String MEDIA_PREFIX = "/api/announcements/media?";
 	private static final int MAX_ENTRIES = 96;
+	private static final long RETRY_MS = 30 * 1000;
 	private static final int MAX_BYTES = 8 * 1024 * 1024;
 	private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 	private static final Map<String, Entry> CACHE = new LinkedHashMap<>(16, 0.75f, true) {
@@ -131,10 +133,14 @@ public final class RemoteImages {
 		return Math.clamp((pixels + 15) / 16 * 16, 16, 1024);
 	}
 
+	public static Entry peek(String src, int requestWidth) {
+		return CACHE.get(src + "|" + requestWidth);
+	}
+
 	public static Entry get(String src, int requestWidth) {
 		String key = src + "|" + requestWidth;
 		Entry entry = CACHE.get(key);
-		if (entry != null) {
+		if (entry != null && !(entry.state == State.FAILED && entry.failedAt > 0 && System.currentTimeMillis() - entry.failedAt > RETRY_MS)) {
 			return entry;
 		}
 		Entry created = new Entry();
@@ -165,6 +171,7 @@ public final class RemoteImages {
 				}
 			} else {
 				created.state = State.FAILED;
+				created.failedAt = System.currentTimeMillis();
 			}
 			version++;
 		}));

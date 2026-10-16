@@ -54,6 +54,11 @@ public final class AnnouncementStore {
 		public int v;
 		public int sp;
 		public int sm;
+		public List<Line> cells;
+		public int tb;
+		public int th;
+		public int cs;
+		public int rs;
 	}
 
 	public static final class Message {

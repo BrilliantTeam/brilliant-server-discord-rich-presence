@@ -21,8 +21,6 @@ import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
-import net.minecraft.network.chat.TextColor;
 
 public final class AnnouncementScreen extends Screen {
 	private record Rect(int x, int y, int w, int h) {
@@ -31,26 +29,14 @@ public final class AnnouncementScreen extends Screen {
 		}
 	}
 
-	private record Segment(int x, int width, String text, Style style, AnnouncementStore.Run run) {}
-
-	private record Row(int y, int height, int indent, String kind, List<Integer> bars, Integer poll, List<Segment> segments,
-			AnnouncementStore.Line image, int imageWidth, int requestWidth) {}
-
-	private record Card(AnnouncementStore.Message message, int y, int height, List<Row> rows) {}
+	private record Card(AnnouncementStore.Message message, int y, int height, RichText.Layout content) {}
 
 	private static final int HEADER = 26;
 	private static final int FOOTER = 16;
 	private static final int PAD = 7;
 	private static final int CARD_GAP = 6;
-	private static final int LINE = 11;
-	private static final int BAR_STEP = 8;
+	private static final int LINE = RichText.LINE;
 	private static final int CHIP_HEIGHT = 14;
-	private static final int QUOTE = 0xFF4E5058;
-	private static final int EMOJI = 9;
-	private static final int EMOJI_ADVANCE = 11;
-	private static final int MAX_IMAGE_HEIGHT = 200;
-	private static final int SMALL_IMAGE = 96;
-	private static final int CODE_BG = 0xFF0F1316;
 	private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm").withZone(ZoneId.systemDefault());
 
 	private final Screen parent;
@@ -58,6 +44,7 @@ public final class AnnouncementScreen extends Screen {
 	private final Set<String> revealed = new HashSet<>();
 	private String board;
 	private double scroll;
+	private boolean draggingBar;
 	private List<Card> cards = List.of();
 	private int layoutWidth = -1;
 	private int layoutVersion = -1;
@@ -154,58 +141,6 @@ public final class AnnouncementScreen extends Screen {
 		return list().y() + contentHeight() - (int) scroll + 4;
 	}
 
-	private int colorOf(String hex, int fallback) {
-		if (hex != null && hex.matches("#[0-9a-fA-F]{6}")) {
-			return 0xFF000000 | Integer.parseInt(hex.substring(1), 16);
-		}
-		return fallback;
-	}
-
-	private Style styleOf(AnnouncementStore.Run run, String kind, boolean reveal) {
-		int base = switch (kind) {
-			case "h1" -> Theme.ACCENT;
-			case "small" -> Theme.TEXT_SECONDARY;
-			case "code" -> 0xFFC8D0D8;
-			default -> Theme.TEXT;
-		};
-		int color = run.dim == 1 ? Theme.TEXT_DIM : run.code == 1 ? 0xFFE6C07B : colorOf(run.c, base);
-		return Style.EMPTY
-				.withColor(TextColor.fromRgb(color & 0xFFFFFF))
-				.withBold(run.b == 1 || kind.startsWith("h"))
-				.withItalic(run.i == 1)
-				.withUnderlined(run.u == 1 || run.h != null)
-				.withStrikethrough(run.s == 1)
-				.withObfuscated(run.sp == 1 && !reveal);
-	}
-
-	private RemoteImages.Entry emoji(String src) {
-		return RemoteImages.get(src, RemoteImages.requestWidth(EMOJI));
-	}
-
-	private int[] imageSize(AnnouncementStore.Line line, int maxWidth) {
-		int limit = Math.max(16, line.sm == 1 ? Math.min(SMALL_IMAGE, maxWidth) : maxWidth);
-		int scale = Math.max(1, minecraft.getWindow().getGuiScale());
-		int sourceWidth = line.w;
-		int sourceHeight = line.h;
-		if (sourceWidth <= 0 || sourceHeight <= 0) {
-			RemoteImages.Entry probe = RemoteImages.get(line.src, RemoteImages.requestWidth(limit));
-			if (probe.state != RemoteImages.State.READY) {
-				int w = Math.min(limit, 160);
-				return new int[] { w, w * 9 / 16, RemoteImages.requestWidth(limit) };
-			}
-			sourceWidth = probe.width;
-			sourceHeight = probe.height;
-		}
-		int w = Math.min(limit, Math.max(24, sourceWidth / scale));
-		int h = Math.max(8, w * sourceHeight / sourceWidth);
-		if (h > MAX_IMAGE_HEIGHT) {
-			h = MAX_IMAGE_HEIGHT;
-			w = Math.max(16, h * sourceWidth / sourceHeight);
-		}
-		int request = line.w > 0 && line.h > 0 ? RemoteImages.requestWidth(w) : RemoteImages.requestWidth(limit);
-		return new int[] { w, h, request };
-	}
-
 	private void layout() {
 		AnnouncementStore.BoardState state = board == null ? null : AnnouncementStore.state(board);
 		int width = list().w() - 4 - PAD * 2;
@@ -226,97 +161,9 @@ public final class AnnouncementScreen extends Screen {
 		List<Card> result = new ArrayList<>();
 		int y = 0;
 		for (AnnouncementStore.Message message : state.messages) {
-			List<Row> rows = new ArrayList<>();
-			int rowY = PAD + LINE + 4;
-			boolean reveal = revealed.contains(message.id);
-			for (AnnouncementStore.Line line : message.lines) {
-				if ("gap".equals(line.k)) {
-					rowY += 5;
-					continue;
-				}
-				if (line.k.startsWith("h") && !rows.isEmpty()) {
-					rowY += 3;
-				}
-				List<Integer> bars = new ArrayList<>();
-				if (line.q == 1) {
-					bars.add(QUOTE);
-				}
-				if (line.bar != null) {
-					bars.add(colorOf(line.bar, QUOTE));
-				}
-				int indent = bars.size() * BAR_STEP;
-				if ("img".equals(line.k)) {
-					int[] size = imageSize(line, width - indent);
-					rows.add(new Row(rowY, size[1], indent, line.k, bars, null, List.of(), line, size[0], size[2]));
-					rowY += size[1] + 3;
-					continue;
-				}
-				String marker = "li".equals(line.k) && line.n != null ? line.n + " " : "";
-				int markerX = indent + Math.max(0, line.d) * 10;
-				int hang = markerX + (marker.isEmpty() ? 0 : font.width(marker));
-				int available = Math.max(20, width - hang - ("poll".equals(line.k) ? 8 : 0));
-				int textX = hang + ("poll".equals(line.k) ? 4 : 0);
-
-				List<List<Segment>> wrapped = new ArrayList<>();
-				List<Segment> current = new ArrayList<>();
-				int x = 0;
-				for (AnnouncementStore.Run run : line.r) {
-					Style style = styleOf(run, line.k, reveal);
-					if (run.e != null && emoji(run.e).state != RemoteImages.State.FAILED) {
-						if (x > 0 && x + EMOJI_ADVANCE > available) {
-							wrapped.add(current);
-							current = new ArrayList<>();
-							x = 0;
-						}
-						current.add(new Segment(textX + x, EMOJI_ADVANCE, run.t, style, run));
-						x += EMOJI_ADVANCE;
-						continue;
-					}
-					String rest = run.t == null ? "" : run.t;
-					while (!rest.isEmpty()) {
-						int fit = font.getSplitter().plainIndexAtWidth(rest, available - x, style);
-						if (fit >= rest.length()) {
-							int w = font.width(Component.literal(rest).withStyle(style));
-							current.add(new Segment(textX + x, w, rest, style, run));
-							x += w;
-							break;
-						}
-						if (fit <= 0) {
-							if (x == 0) {
-								fit = 1;
-							} else {
-								wrapped.add(current);
-								current = new ArrayList<>();
-								x = 0;
-								continue;
-							}
-						}
-						int space = rest.lastIndexOf(' ', fit);
-						int take = space > 0 && rest.substring(0, fit).chars().allMatch(ch -> ch < 0x2E80) ? space + 1 : fit;
-						String piece = rest.substring(0, take);
-						int w = font.width(Component.literal(piece).withStyle(style));
-						current.add(new Segment(textX + x, w, piece, style, run));
-						rest = rest.substring(take);
-						wrapped.add(current);
-						current = new ArrayList<>();
-						x = 0;
-					}
-				}
-				if (!current.isEmpty() || wrapped.isEmpty()) {
-					wrapped.add(current);
-				}
-				for (int i = 0; i < wrapped.size(); i++) {
-					List<Segment> segments = new ArrayList<>(wrapped.get(i));
-					if (i == 0 && !marker.isEmpty()) {
-						segments.addFirst(new Segment(markerX, font.width(marker), marker, Style.EMPTY.withColor(TextColor.fromRgb(Theme.TEXT_DIM & 0xFFFFFF)), new AnnouncementStore.Run()));
-					}
-					int height = "poll".equals(line.k) ? LINE + 4 : LINE;
-					rows.add(new Row(rowY, height, indent, line.k, bars, "poll".equals(line.k) ? line.p : null, segments, null, 0, 0));
-					rowY += height + ("poll".equals(line.k) ? 2 : 0);
-				}
-			}
-			int height = rowY + PAD - 2;
-			result.add(new Card(message, y, height, rows));
+			RichText.Layout content = RichText.layout(font, message.lines, width, revealed.contains(message.id), PAD + LINE + 4);
+			int height = content.height() + PAD - 2;
+			result.add(new Card(message, y, height, content));
 			y += height + CARD_GAP;
 		}
 		cards = result;
@@ -423,94 +270,7 @@ public final class AnnouncementScreen extends Screen {
 			gfx.text(font, label, lx + 4, y + PAD, Theme.ACCENT);
 		}
 
-		int cx = x + PAD;
-		int contentWidth = w - PAD * 2;
-		for (Row row : card.rows()) {
-			int ry = y + row.y();
-			for (int i = 0; i < row.bars().size(); i++) {
-				gfx.fill(cx + i * BAR_STEP, ry - 1, cx + i * BAR_STEP + 2, ry + row.height(), row.bars().get(i));
-			}
-			if ("code".equals(row.kind())) {
-				gfx.fill(cx + row.indent(), ry - 1, cx + contentWidth, ry + row.height(), CODE_BG);
-			}
-			if (row.poll() != null) {
-				int px = cx + row.indent();
-				int pw = contentWidth - row.indent();
-				gfx.fill(px, ry, px + pw, ry + row.height() - 1, Theme.CHIP);
-				gfx.fill(px, ry, px + pw * Math.clamp(row.poll(), 0, 100) / 100, ry + row.height() - 1, Theme.ACCENT_DIM);
-			}
-			if (row.image() != null) {
-				drawImage(gfx, row, cx + row.indent(), ry, revealed.contains(message.id), mouseX, mouseY, mouseInList, tooltip);
-				continue;
-			}
-			int textY = ry + (row.poll() != null ? 3 : 1);
-			for (Segment segment : row.segments()) {
-				int sx = cx + segment.x();
-				if (segment.run().code == 1 && !"code".equals(row.kind())) {
-					gfx.fill(sx - 1, ry - 1, sx + segment.width() + 1, ry + row.height() - 1, CODE_BG);
-				}
-				boolean hovered = mouseInList && mouseX >= sx && mouseX < sx + segment.width() && mouseY >= ry - 1 && mouseY < ry + row.height();
-				if (segment.run().e != null && emoji(segment.run().e).state != RemoteImages.State.FAILED) {
-					RemoteImages.Entry icon = emoji(segment.run().e);
-					if (icon.state == RemoteImages.State.READY) {
-						RemoteImages.draw(gfx, icon, sx + 1, textY - 1, EMOJI, EMOJI);
-					}
-					if (hovered) {
-						tooltip.add(Component.literal(segment.text()));
-					}
-					continue;
-				}
-				gfx.text(font, Component.literal(segment.text()).withStyle(segment.style()), sx, textY, Theme.TEXT);
-				if (hovered && segment.run().h != null) {
-					tooltip.add(Component.literal(segment.run().h).withStyle(ChatFormatting.AQUA));
-					tooltip.add(Component.literal("點擊開啟連結").withStyle(ChatFormatting.GRAY));
-				} else if (hovered && segment.run().sp == 1 && !revealed.contains(message.id)) {
-					tooltip.add(Component.literal("暴雷內容，點擊顯示"));
-				}
-			}
-		}
-	}
-
-	private void drawImage(Gfx gfx, Row row, int x, int y, boolean reveal, int mouseX, int mouseY, boolean mouseInList, List<Component> tooltip) {
-		AnnouncementStore.Line line = row.image();
-		int w = row.imageWidth();
-		int h = row.height();
-		RemoteImages.Entry entry = RemoteImages.get(line.src, row.requestWidth());
-		boolean hidden = line.sp == 1 && !reveal;
-		boolean hovered = mouseInList && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
-		if (entry.state == RemoteImages.State.READY) {
-			RemoteImages.draw(gfx, entry, x, y, w, h);
-		} else {
-			gfx.fill(x, y, x + w, y + h, Theme.CHIP);
-			String text = entry.state == RemoteImages.State.LOADING ? "載入中…" : "無法載入，點擊在瀏覽器開啟";
-			gfx.text(font, font.plainSubstrByWidth(text, w - 8), x + Math.max(4, (w - font.width(text)) / 2), y + (h - 8) / 2, Theme.TEXT_DIM);
-		}
-		if (hidden) {
-			gfx.fill(x, y, x + w, y + h, 0xF01A1E22);
-			String text = "暴雷內容・點擊顯示";
-			gfx.text(font, font.plainSubstrByWidth(text, w - 8), x + Math.max(4, (w - font.width(text)) / 2), y + (h - 8) / 2, Theme.TEXT);
-		} else if (line.v == 1 && entry.state == RemoteImages.State.READY) {
-			int bw = 22;
-			int bh = 16;
-			int bx = x + (w - bw) / 2;
-			int by = y + (h - bh) / 2;
-			gfx.fill(bx, by, bx + bw, by + bh, hovered ? 0xE0000000 : 0xB0000000);
-			gfx.text(font, "▶", bx + (bw - font.width("▶")) / 2 + 1, by + 4, 0xFFFFFFFF);
-		}
-		if (!hidden && line.l != null && !line.l.isEmpty() && entry.state == RemoteImages.State.READY) {
-			String label = font.plainSubstrByWidth(line.l, w - 8);
-			gfx.fill(x, y + h - 11, x + font.width(label) + 6, y + h, 0xB0000000);
-			gfx.text(font, label, x + 3, y + h - 9, 0xFFFFFFFF);
-		}
-		if (hovered) {
-			gfx.fill(x, y, x + w, y + 1, Theme.ACCENT);
-			gfx.fill(x, y + h - 1, x + w, y + h, Theme.ACCENT);
-			if (hidden) {
-				tooltip.add(Component.literal("暴雷內容，點擊顯示"));
-			} else if (line.href != null) {
-				tooltip.add(Component.literal(line.v == 1 ? "點擊在瀏覽器播放影片" : "點擊在瀏覽器開啟原圖"));
-			}
-		}
+		RichText.draw(gfx, font, card.content(), x + PAD, y, w - PAD * 2, revealed.contains(message.id), mouseX, mouseY, mouseInList, tooltip);
 	}
 
 	private void drawListStatus(Gfx gfx, AnnouncementStore.BoardState state, Rect l, int mouseX, int mouseY) {
@@ -589,6 +349,11 @@ public final class AnnouncementScreen extends Screen {
 		if (!l.contains(mouseX, mouseY)) {
 			return true;
 		}
+		if (onScrollBar(l, mouseX)) {
+			draggingBar = true;
+			dragScrollBar(mouseY);
+			return true;
+		}
 		Rect retry = cards.isEmpty() ? new Rect(retryChip().x(), l.y() + l.h() / 3 + 14, retryChip().w(), CHIP_HEIGHT) : retryChip();
 		if (retry.contains(mouseX, mouseY)) {
 			if (board == null) {
@@ -601,54 +366,47 @@ public final class AnnouncementScreen extends Screen {
 			}
 			return true;
 		}
-		int cx = l.x() + PAD;
 		for (Card card : cards) {
 			int cy = l.y() + card.y() - (int) scroll;
 			if (mouseY < cy || mouseY >= cy + card.height()) {
 				continue;
 			}
-			for (Row row : card.rows()) {
-				int ry = cy + row.y();
-				if (mouseY < ry - 1 || mouseY >= ry + row.height()) {
-					continue;
-				}
-				if (row.image() != null) {
-					int ix = cx + row.indent();
-					if (mouseX >= ix && mouseX < ix + row.imageWidth()) {
-						if (row.image().sp == 1 && !revealed.contains(card.message().id)) {
-							revealed.add(card.message().id);
-						} else if (row.image().href != null) {
-							openLink(row.image().href);
-						}
-					}
-					return true;
-				}
-				for (Segment segment : row.segments()) {
-					int sx = cx + segment.x();
-					if (mouseX < sx || mouseX >= sx + segment.width()) {
-						continue;
-					}
-					if (segment.run().h != null) {
-						openLink(segment.run().h);
-					} else if (segment.run().sp == 1) {
-						revealed.add(card.message().id);
-					}
-					return true;
-				}
+			RichText.Hit hit = RichText.hit(card.content(), l.x() + PAD, cy, mouseX, mouseY, revealed.contains(card.message().id));
+			if (hit != null && hit.href() != null) {
+				RichText.openLink(this, hit.href());
+			} else if (hit != null && hit.spoiler()) {
+				revealed.add(card.message().id);
 			}
 			return true;
 		}
 		return true;
 	}
 
-	private void openLink(String url) {
-		try {
-			URI uri = URI.create(url);
-			if ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme())) {
-				ConfirmLinkScreen.confirmLinkNow(this, uri);
-			}
-		} catch (IllegalArgumentException ignored) {
+	private boolean onScrollBar(Rect l, double mouseX) {
+		return mouseX >= l.x() + l.w() - 6 && contentHeight() + 30 > l.h();
+	}
+
+	private void dragScrollBar(double mouseY) {
+		Rect l = list();
+		int content = contentHeight() + 30;
+		int barHeight = Math.max(16, l.h() * l.h() / content);
+		double fraction = (mouseY - l.y() - barHeight / 2.0) / Math.max(1, l.h() - barHeight);
+		scroll = Math.clamp(fraction, 0, 1) * (content - l.h());
+	}
+
+	@Override
+	public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+		if (draggingBar) {
+			dragScrollBar(event.y());
+			return true;
 		}
+		return super.mouseDragged(event, dragX, dragY);
+	}
+
+	@Override
+	public boolean mouseReleased(MouseButtonEvent event) {
+		draggingBar = false;
+		return super.mouseReleased(event);
 	}
 
 	@Override
