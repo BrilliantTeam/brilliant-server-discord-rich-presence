@@ -1,0 +1,498 @@
+package net.brilliantw.richpresence;
+
+import com.mojang.blaze3d.platform.InputConstants;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.util.FormattedCharSequence;
+
+public final class PrivateWindow {
+	private record Rect(int x, int y, int w, int h) {
+		boolean contains(double mouseX, double mouseY) {
+			return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
+		}
+	}
+
+	private record Tab(Rect rect, PrivateMessages.Conversation conversation) {}
+
+	private enum Popup { NONE, EMOJI, SHOWCASE }
+
+	private static final int WIDTH = 240;
+	private static final int HEADER = 14;
+	private static final int BODY = 96;
+	private static final int FOOTER = 20;
+	private static final int PAD = 4;
+	private static final int LINE = 10;
+	private static final int BACKGROUND = 0xC0101418;
+	private static final int EMOJI_CELL = 14;
+	private static final int EMOJI_COLUMNS = 12;
+	private static final int EMOJI_ROWS = 6;
+	private static final List<String[]> SHOWCASE = List.of(new String[] { "手上物品", "[i]" }, new String[] { "背包", "[inv]" }, new String[] { "終界箱", "[ender]" });
+
+	private static EditBox input;
+	private static String draft = "";
+	private static Popup popup = Popup.NONE;
+	private static boolean dragging;
+	private static double dragX;
+	private static double dragY;
+	private static double scroll;
+	private static double emojiScroll;
+
+	private PrivateWindow() {}
+
+	private static Font font() {
+		return Minecraft.getInstance().font;
+	}
+
+	private static boolean visible() {
+		return RichPresenceModClient.isOnBrilliantServer() && !PrivateMessages.conversations().isEmpty();
+	}
+
+	public static EditBox createInput() {
+		input = new EditBox(font(), 0, 0, 100, 16, Component.literal("私訊"));
+		input.setMaxLength(256);
+		input.setValue(draft);
+		input.setResponder(value -> draft = value);
+		input.visible = false;
+		return input;
+	}
+
+	public static boolean inputFocused(ChatScreen screen) {
+		return input != null && input.visible && screen.getFocused() == input;
+	}
+
+	public static void insert(ChatScreen screen, String text) {
+		if (inputFocused(screen)) {
+			input.insertText(text);
+		} else {
+			screen.insertText(text, false);
+		}
+	}
+
+	public static boolean keyPressed(ChatScreen screen, KeyEvent event) {
+		if (!inputFocused(screen) || event.isEscape()) {
+			return false;
+		}
+		if (event.isConfirmation()) {
+			send();
+		} else {
+			input.keyPressed(event);
+		}
+		return true;
+	}
+
+	public static void send() {
+		PrivateMessages.Conversation selected = PrivateMessages.selected();
+		if (input == null || selected == null || input.getValue().isBlank()) {
+			return;
+		}
+		PrivateMessages.send(selected.name, input.getValue());
+		input.setValue("");
+		scroll = 0;
+	}
+
+	private static String pillLabel() {
+		int unread = PrivateMessages.totalUnread();
+		return "✉ 私訊" + (unread > 0 ? " " + unread : "");
+	}
+
+	private static boolean expandedInteractive(boolean interactive) {
+		return interactive && !PrivateMessages.collapsed() && PrivateMessages.selected() != null;
+	}
+
+	private static Rect frame(int screenWidth, int screenHeight, boolean interactive) {
+		int w = PrivateMessages.collapsed() ? font().width(pillLabel()) + 12 : Math.min(WIDTH, screenWidth - 8);
+		int h = PrivateMessages.collapsed() ? HEADER : HEADER + BODY + (expandedInteractive(interactive) ? FOOTER : 0);
+		int x = Math.clamp(PrivateMessages.windowX(), 0, Math.max(0, screenWidth - w));
+		int y = Math.clamp(PrivateMessages.windowY(), 0, Math.max(0, screenHeight - h));
+		return new Rect(x, y, w, h);
+	}
+
+	private static Rect headerButton(Rect frame, int slot) {
+		return new Rect(frame.x() + frame.w() - 13 * (slot + 1), frame.y() + 1, 12, HEADER - 2);
+	}
+
+	private static List<Tab> tabs(Rect frame, boolean interactive) {
+		List<Tab> tabs = new ArrayList<>();
+		int x = frame.x() + PAD;
+		int limit = frame.x() + frame.w() - (interactive ? 42 : 16);
+		for (PrivateMessages.Conversation conversation : PrivateMessages.conversations()) {
+			int w = font().width(tabLabel(conversation)) + 8;
+			if (x + w > limit) {
+				break;
+			}
+			tabs.add(new Tab(new Rect(x, frame.y() + 1, w, HEADER - 2), conversation));
+			x += w + 2;
+		}
+		return tabs;
+	}
+
+	private static String tabLabel(PrivateMessages.Conversation conversation) {
+		String name = font().plainSubstrByWidth(conversation.display, 70);
+		return conversation.unread > 0 ? name + " " + conversation.unread : name;
+	}
+
+	private static Rect body(Rect frame) {
+		return new Rect(frame.x() + PAD, frame.y() + HEADER + 2, frame.w() - PAD * 2, BODY - 4);
+	}
+
+	private static Rect footerChip(Rect frame, int slot) {
+		String[] labels = { "傳送", "表情", "展示" };
+		int right = frame.x() + frame.w() - PAD;
+		for (int i = 0; i <= slot; i++) {
+			int w = font().width(labels[i]) + 10;
+			right -= w;
+			if (i == slot) {
+				return new Rect(right, frame.y() + HEADER + BODY + 2, w, FOOTER - 4);
+			}
+			right -= 2;
+		}
+		throw new IllegalStateException();
+	}
+
+	private static Rect inputRect(Rect frame) {
+		int x = frame.x() + PAD;
+		return new Rect(x, frame.y() + HEADER + BODY + 2, footerChip(frame, 2).x() - 3 - x, FOOTER - 4);
+	}
+
+	private static Rect emojiPanel(Rect frame) {
+		int w = EMOJI_COLUMNS * EMOJI_CELL + 8;
+		int h = EMOJI_ROWS * EMOJI_CELL + 8;
+		Rect anchor = footerChip(frame, 1);
+		int y = frame.y() + HEADER + BODY + FOOTER + 2;
+		int screenHeight = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+		if (y + h > screenHeight) {
+			y = frame.y() + HEADER + BODY - h;
+		}
+		return new Rect(Math.max(0, anchor.x() + anchor.w() - w), y, w, h);
+	}
+
+	private static List<Rect> showcaseItems(Rect frame) {
+		Rect anchor = footerChip(frame, 2);
+		int w = SHOWCASE.stream().mapToInt(item -> font().width(item[0] + " " + item[1])).max().orElse(0) + 12;
+		int y = frame.y() + HEADER + BODY + FOOTER + 2;
+		List<Rect> rects = new ArrayList<>();
+		for (int i = 0; i < SHOWCASE.size(); i++) {
+			rects.add(new Rect(Math.max(0, anchor.x() + anchor.w() - w), y + i * 17, w, 16));
+		}
+		return rects;
+	}
+
+	private static void chip(Gfx gfx, Rect rect, String label, int color, boolean hovered, boolean active) {
+		gfx.fill(rect.x(), rect.y(), rect.x() + rect.w(), rect.y() + rect.h(), active ? Theme.SELECTED : hovered ? Theme.CHIP_HOVER : Theme.CHIP);
+		if (active) {
+			gfx.fill(rect.x(), rect.y() + rect.h() - 1, rect.x() + rect.w(), rect.y() + rect.h(), Theme.ACCENT);
+		}
+		gfx.text(font(), label, rect.x() + (rect.w() - font().width(label)) / 2, rect.y() + (rect.h() - 8) / 2, color);
+	}
+
+	public static void renderHud(Gfx gfx) {
+		Minecraft minecraft = Minecraft.getInstance();
+		//? if >=26.2 {
+		boolean hidden = minecraft.gui.screen() instanceof ChatScreen;
+		//?} else {
+		/*boolean hidden = minecraft.options.hideGui || minecraft.screen instanceof ChatScreen;
+		*///?}
+		if (hidden) {
+			return;
+		}
+		render(gfx, minecraft.getWindow().getGuiScaledWidth(), minecraft.getWindow().getGuiScaledHeight(), -1, -1, false);
+	}
+
+	public static void render(Gfx gfx, int screenWidth, int screenHeight, int mouseX, int mouseY, boolean interactive) {
+		boolean shown = visible();
+		if (input != null) {
+			input.visible = shown && expandedInteractive(interactive);
+		}
+		if (!shown) {
+			popup = Popup.NONE;
+			return;
+		}
+		Font font = font();
+		Rect frame = frame(screenWidth, screenHeight, interactive);
+		if (PrivateMessages.collapsed()) {
+			boolean hovered = frame.contains(mouseX, mouseY);
+			gfx.fill(frame.x(), frame.y(), frame.x() + frame.w(), frame.y() + frame.h(), hovered ? Theme.CHIP_HOVER : BACKGROUND);
+			gfx.text(font, pillLabel(), frame.x() + 6, frame.y() + 3, PrivateMessages.totalUnread() > 0 ? Theme.WARNING : Theme.ACCENT);
+			return;
+		}
+
+		gfx.fill(frame.x(), frame.y(), frame.x() + frame.w(), frame.y() + frame.h(), BACKGROUND);
+		gfx.fill(frame.x(), frame.y(), frame.x() + frame.w(), frame.y() + HEADER, Theme.HEADER);
+		gfx.fill(frame.x(), frame.y() + HEADER - 1, frame.x() + frame.w(), frame.y() + HEADER, Theme.ACCENT_DIM);
+		PrivateMessages.Conversation selected = PrivateMessages.selected();
+		for (Tab tab : tabs(frame, interactive)) {
+			boolean isSelected = tab.conversation() == selected;
+			int color = tab.conversation().unread > 0 ? Theme.WARNING : isSelected ? Theme.TEXT : Theme.TEXT_SECONDARY;
+			chip(gfx, tab.rect(), tabLabel(tab.conversation()), color, interactive && tab.rect().contains(mouseX, mouseY), isSelected);
+		}
+		chip(gfx, headerButton(frame, 0), "—", Theme.TEXT, interactive && headerButton(frame, 0).contains(mouseX, mouseY), false);
+		if (interactive) {
+			chip(gfx, headerButton(frame, 1), PrivateMessages.hideInChat() ? "隱" : "顯", PrivateMessages.hideInChat() ? Theme.SUCCESS : Theme.TEXT_DIM, headerButton(frame, 1).contains(mouseX, mouseY), false);
+			if (selected != null) {
+				chip(gfx, headerButton(frame, 2), "✕", Theme.DANGER, headerButton(frame, 2).contains(mouseX, mouseY), false);
+			}
+		}
+
+		drawMessages(gfx, frame, selected, interactive);
+
+		if (expandedInteractive(interactive)) {
+			Rect box = inputRect(frame);
+			if (input != null) {
+				input.setX(box.x());
+				input.setY(box.y());
+				input.setWidth(box.w());
+				input.setMaxLength(PrivateMessages.maxMessageLength(selected.name));
+				input.setHint(Component.literal("私訊 " + selected.display + "…").withStyle(ChatFormatting.DARK_GRAY));
+			}
+			chip(gfx, footerChip(frame, 0), "傳送", Theme.ACCENT, footerChip(frame, 0).contains(mouseX, mouseY), false);
+			chip(gfx, footerChip(frame, 1), "表情", Theme.TEXT, footerChip(frame, 1).contains(mouseX, mouseY), popup == Popup.EMOJI);
+			chip(gfx, footerChip(frame, 2), "展示", Theme.TEXT, footerChip(frame, 2).contains(mouseX, mouseY), popup == Popup.SHOWCASE);
+		} else {
+			popup = Popup.NONE;
+		}
+	}
+
+	public static void renderOverlay(Gfx gfx, int screenWidth, int screenHeight, int mouseX, int mouseY) {
+		if (!visible()) {
+			return;
+		}
+		Rect frame = frame(screenWidth, screenHeight, true);
+		List<Component> tooltip = new ArrayList<>();
+		if (popup == Popup.EMOJI) {
+			drawEmojiPanel(gfx, frame, mouseX, mouseY, tooltip);
+		} else if (popup == Popup.SHOWCASE) {
+			List<Rect> items = showcaseItems(frame);
+			for (int i = 0; i < items.size(); i++) {
+				Rect rect = items.get(i);
+				gfx.fill(rect.x() - 1, rect.y() - 1, rect.x() + rect.w() + 1, rect.y() + rect.h() + 1, Theme.ACCENT_DIM);
+				chip(gfx, rect, SHOWCASE.get(i)[0] + " " + SHOWCASE.get(i)[1], Theme.TEXT, rect.contains(mouseX, mouseY), false);
+			}
+		}
+		if (PrivateMessages.collapsed()) {
+			if (frame.contains(mouseX, mouseY)) {
+				tooltip.add(Component.literal("點擊展開私訊視窗（可拖曳移動）"));
+			}
+		} else if (tooltip.isEmpty()) {
+			for (Tab tab : tabs(frame, true)) {
+				if (tab.rect().contains(mouseX, mouseY)) {
+					tooltip.add(Component.literal(tab.conversation().label()));
+				}
+			}
+			if (headerButton(frame, 0).contains(mouseX, mouseY)) {
+				tooltip.add(Component.literal("縮小私訊視窗"));
+			} else if (headerButton(frame, 1).contains(mouseX, mouseY)) {
+				tooltip.add(Component.literal(PrivateMessages.hideInChat() ? "私訊目前只顯示在這個視窗，點擊改為也顯示在聊天欄" : "私訊目前也會顯示在聊天欄，點擊改為只顯示在這個視窗"));
+			} else if (PrivateMessages.selected() != null && headerButton(frame, 2).contains(mouseX, mouseY)) {
+				tooltip.add(Component.literal("關閉這個對話"));
+			} else if (mouseY >= frame.y() && mouseY < frame.y() + HEADER && frame.contains(mouseX, mouseY)) {
+				tooltip.add(Component.literal("拖曳標題列可以移動視窗"));
+			}
+		}
+		if (!tooltip.isEmpty()) {
+			gfx.tooltip(font(), tooltip, mouseX, mouseY);
+		}
+	}
+
+	private static void drawEmojiPanel(Gfx gfx, Rect frame, int mouseX, int mouseY, List<Component> tooltip) {
+		Rect panel = emojiPanel(frame);
+		List<EmojiPicker.Emoji> emojis = EmojiPicker.emojis();
+		int maxScroll = Math.max(0, (emojis.size() + EMOJI_COLUMNS - 1) / EMOJI_COLUMNS - EMOJI_ROWS);
+		emojiScroll = Math.clamp(emojiScroll, 0, maxScroll);
+		gfx.fill(panel.x() - 1, panel.y() - 1, panel.x() + panel.w() + 1, panel.y() + panel.h() + 1, Theme.ACCENT_DIM);
+		gfx.fill(panel.x(), panel.y(), panel.x() + panel.w(), panel.y() + panel.h(), Theme.HEADER);
+		int hovered = emojiAt(frame, mouseX, mouseY);
+		for (int row = 0; row < EMOJI_ROWS; row++) {
+			for (int column = 0; column < EMOJI_COLUMNS; column++) {
+				int index = (row + (int) emojiScroll) * EMOJI_COLUMNS + column;
+				if (index >= emojis.size()) {
+					break;
+				}
+				int x = panel.x() + 4 + column * EMOJI_CELL;
+				int y = panel.y() + 4 + row * EMOJI_CELL;
+				if (index == hovered) {
+					gfx.fill(x, y, x + EMOJI_CELL, y + EMOJI_CELL, Theme.CHIP_HOVER);
+				}
+				String symbol = emojis.get(index).symbol();
+				gfx.text(font(), symbol, x + (EMOJI_CELL - font().width(symbol)) / 2, y + 3, 0xFFFFFFFF);
+			}
+		}
+		if (hovered >= 0) {
+			tooltip.add(Component.literal(emojis.get(hovered).code()));
+		}
+	}
+
+	private static int emojiAt(Rect frame, double mouseX, double mouseY) {
+		Rect panel = emojiPanel(frame);
+		if (!new Rect(panel.x() + 4, panel.y() + 4, EMOJI_COLUMNS * EMOJI_CELL, EMOJI_ROWS * EMOJI_CELL).contains(mouseX, mouseY)) {
+			return -1;
+		}
+		int index = ((int) (mouseY - panel.y() - 4) / EMOJI_CELL + (int) emojiScroll) * EMOJI_COLUMNS + (int) (mouseX - panel.x() - 4) / EMOJI_CELL;
+		return index < EmojiPicker.emojis().size() ? index : -1;
+	}
+
+	private static void drawMessages(Gfx gfx, Rect frame, PrivateMessages.Conversation selected, boolean interactive) {
+		Rect body = body(frame);
+		if (selected == null) {
+			return;
+		}
+		List<FormattedCharSequence> lines = new ArrayList<>();
+		for (PrivateMessages.Message message : selected.messages) {
+			String name = message.mine() ? "我" : selected.display;
+			Component who = Component.literal((message.server().isEmpty() ? name : message.server() + "｜" + name) + "：")
+					.withStyle(Style.EMPTY.withColor(TextColor.fromRgb((message.mine() ? Theme.ACCENT : Theme.WARNING) & 0xFFFFFF)));
+			lines.addAll(font().split(who.copy().append(Component.literal(message.text()).withStyle(ChatFormatting.WHITE)), body.w()));
+		}
+		int visible = body.h() / LINE;
+		int maxScroll = Math.max(0, lines.size() - visible);
+		scroll = Math.clamp(scroll, 0, maxScroll);
+		int offset = interactive ? (int) scroll : 0;
+		int start = Math.max(0, lines.size() - visible - offset);
+		int end = Math.min(lines.size(), start + visible);
+		int y = body.y() + body.h() - (end - start) * LINE;
+		for (int i = start; i < end; i++) {
+			gfx.text(font(), lines.get(i), body.x(), y, 0xFFFFFFFF);
+			y += LINE;
+		}
+		if (interactive && maxScroll > 0) {
+			int barHeight = Math.max(8, body.h() * visible / lines.size());
+			int barY = body.y() + (int) ((body.h() - barHeight) * (1 - scroll / maxScroll));
+			gfx.fill(frame.x() + frame.w() - 2, barY, frame.x() + frame.w(), barY + barHeight, Theme.CHIP_HOVER);
+		}
+	}
+
+	public static boolean mouseClicked(ChatScreen screen, MouseButtonEvent event, boolean doubleClick) {
+		if (!visible() || event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
+			return false;
+		}
+		double mouseX = event.x();
+		double mouseY = event.y();
+		Rect frame = frame(screen.width, screen.height, true);
+		if (popup == Popup.EMOJI && emojiPanel(frame).contains(mouseX, mouseY)) {
+			int index = emojiAt(frame, mouseX, mouseY);
+			if (index >= 0 && input != null) {
+				input.insertText(EmojiPicker.emojis().get(index).code());
+				screen.setFocused(input);
+			}
+			return true;
+		}
+		if (popup == Popup.SHOWCASE) {
+			List<Rect> items = showcaseItems(frame);
+			for (int i = 0; i < items.size(); i++) {
+				if (items.get(i).contains(mouseX, mouseY) && input != null) {
+					input.insertText(SHOWCASE.get(i)[1]);
+					screen.setFocused(input);
+					popup = Popup.NONE;
+					return true;
+				}
+			}
+		}
+		if (!frame.contains(mouseX, mouseY)) {
+			popup = Popup.NONE;
+			return false;
+		}
+		if (PrivateMessages.collapsed()) {
+			startDrag(frame, mouseX, mouseY);
+			return true;
+		}
+		PrivateMessages.Conversation selected = PrivateMessages.selected();
+		if (headerButton(frame, 0).contains(mouseX, mouseY)) {
+			PrivateMessages.setCollapsed(true);
+			return true;
+		}
+		if (headerButton(frame, 1).contains(mouseX, mouseY)) {
+			PrivateMessages.setHideInChat(!PrivateMessages.hideInChat());
+			return true;
+		}
+		if (selected != null && headerButton(frame, 2).contains(mouseX, mouseY)) {
+			PrivateMessages.close(selected);
+			return true;
+		}
+		for (Tab tab : tabs(frame, true)) {
+			if (tab.rect().contains(mouseX, mouseY)) {
+				PrivateMessages.select(tab.conversation().name);
+				scroll = 0;
+				return true;
+			}
+		}
+		if (expandedInteractive(true)) {
+			if (input != null && inputRect(frame).contains(mouseX, mouseY)) {
+				screen.setFocused(input);
+				input.mouseClicked(event, doubleClick);
+				popup = Popup.NONE;
+				return true;
+			}
+			if (footerChip(frame, 0).contains(mouseX, mouseY)) {
+				send();
+				return true;
+			}
+			if (footerChip(frame, 1).contains(mouseX, mouseY)) {
+				popup = popup == Popup.EMOJI ? Popup.NONE : Popup.EMOJI;
+				return true;
+			}
+			if (footerChip(frame, 2).contains(mouseX, mouseY)) {
+				popup = popup == Popup.SHOWCASE ? Popup.NONE : Popup.SHOWCASE;
+				return true;
+			}
+		}
+		popup = Popup.NONE;
+		if (mouseY < frame.y() + HEADER) {
+			startDrag(frame, mouseX, mouseY);
+		}
+		return true;
+	}
+
+	private static void startDrag(Rect frame, double mouseX, double mouseY) {
+		dragging = true;
+		dragX = mouseX - frame.x();
+		dragY = mouseY - frame.y();
+	}
+
+	public static boolean mouseDragged(ChatScreen screen, double mouseX, double mouseY) {
+		if (!dragging) {
+			return false;
+		}
+		PrivateMessages.moveWindow((int) (mouseX - dragX), (int) (mouseY - dragY));
+		return true;
+	}
+
+	public static boolean mouseReleased(ChatScreen screen, double mouseX, double mouseY) {
+		if (!dragging) {
+			return false;
+		}
+		dragging = false;
+		Rect frame = frame(screen.width, screen.height, true);
+		PrivateMessages.moveWindow(frame.x(), frame.y());
+		if (PrivateMessages.collapsed() && Math.abs(mouseX - frame.x() - dragX) < 2 && Math.abs(mouseY - frame.y() - dragY) < 2) {
+			PrivateMessages.setCollapsed(false);
+		} else {
+			PrivateMessages.saveSettings();
+		}
+		return true;
+	}
+
+	public static boolean mouseScrolled(ChatScreen screen, double mouseX, double mouseY, double amount) {
+		if (!visible() || PrivateMessages.collapsed()) {
+			return false;
+		}
+		Rect frame = frame(screen.width, screen.height, true);
+		if (popup == Popup.EMOJI && emojiPanel(frame).contains(mouseX, mouseY)) {
+			emojiScroll -= Math.signum(amount);
+			return true;
+		}
+		if (!frame.contains(mouseX, mouseY)) {
+			return false;
+		}
+		scroll += Math.signum(amount) * 2;
+		return true;
+	}
+}

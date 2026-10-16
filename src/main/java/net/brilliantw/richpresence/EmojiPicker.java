@@ -16,7 +16,7 @@ import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.network.chat.Component;
 
 public final class EmojiPicker {
-	private record Emoji(String symbol, String code) {}
+	public record Emoji(String symbol, String code) {}
 
 	private static final List<Emoji> EMOJIS = load();
 	private static final int CELL = 14;
@@ -28,6 +28,10 @@ public final class EmojiPicker {
 	private static int scrollRow;
 
 	private EmojiPicker() {}
+
+	public static List<Emoji> emojis() {
+		return EMOJIS;
+	}
 
 	private static List<Emoji> load() {
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(EmojiPicker.class.getResourceAsStream("/emojis.txt"), StandardCharsets.UTF_8))) {
@@ -165,7 +169,7 @@ public final class EmojiPicker {
 		}
 		int index = hoveredIndex(screen, mouseX, mouseY);
 		if (index >= 0) {
-			screen.insertText(EMOJIS.get(index).code(), false);
+			PrivateWindow.insert(screen, EMOJIS.get(index).code());
 		}
 		return true;
 	}

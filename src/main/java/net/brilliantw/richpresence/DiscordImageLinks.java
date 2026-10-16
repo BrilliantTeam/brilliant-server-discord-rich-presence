@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.ClickEvent;
@@ -32,11 +31,6 @@ public final class DiscordImageLinks {
 	private DiscordImageLinks() {}
 
 	public static void register() {
-		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
-			if (!overlay) {
-				scan(message);
-			}
-		});
 		ClientSendMessageEvents.ALLOW_COMMAND.register(command -> !intercept(command));
 	}
 
@@ -58,7 +52,7 @@ public final class DiscordImageLinks {
 		return true;
 	}
 
-	static void scan(Component message) {
+	public static void scan(Component message) {
 		String[] pending = new String[1];
 		StringBuilder name = new StringBuilder();
 		message.visit((Style style, String text) -> {

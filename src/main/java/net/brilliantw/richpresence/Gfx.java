@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 *///?}
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 
 public final class Gfx {
 	//? if >=26.1 {
@@ -38,6 +39,14 @@ public final class Gfx {
 	}
 
 	public void text(Font font, Component text, int x, int y, int color) {
+		//? if >=26.1 {
+		graphics.text(font, text, x, y, color, false);
+		//?} else {
+		/*graphics.drawString(font, text, x, y, color, false);
+		*///?}
+	}
+
+	public void text(Font font, FormattedCharSequence text, int x, int y, int color) {
 		//? if >=26.1 {
 		graphics.text(font, text, x, y, color, false);
 		//?} else {

@@ -52,6 +52,14 @@ public final class RichPresenceModClient implements ClientModInitializer {
 				.append(Component.literal("公告").withStyle(ChatFormatting.GOLD))
 				.append(Component.literal("｜").withStyle(ChatFormatting.GRAY))
 				.append(Component.literal("有 " + unread + " 則新公告（" + boards + "），打開聊天欄點右下角「公告」查看。").withStyle(ChatFormatting.WHITE));
+		showMessage(message);
+	}
+
+	public static void showMessage(Component message) {
+		Minecraft client = Minecraft.getInstance();
+		if (client.player == null) {
+			return;
+		}
 		//? if >=26.1 {
 		client.player.sendSystemMessage(message);
 		//?} else {
