@@ -54,6 +54,7 @@ public final class ChannelBar {
 
 	private static final String TOGGLE_LABEL = "頻道設定";
 	private static final String COMMANDS_LABEL = "自訂指令";
+	private static final String ANNOUNCEMENTS_LABEL = "公告";
 	private static final int HEIGHT = 14;
 	private static final int GAP = 2;
 	private static final int PADDING = 3;
@@ -108,6 +109,17 @@ public final class ChannelBar {
 		Button<Void> toggle = toggle(font, screen);
 		int width = buttonWidth(font, COMMANDS_LABEL);
 		return new Button<>(toggle.x() - GAP - width, toggle.y(), width, HEIGHT, null);
+	}
+
+	private static String announcementsLabel() {
+		int unread = AnnouncementStore.totalUnread();
+		return unread > 0 ? ANNOUNCEMENTS_LABEL + " " + unread : ANNOUNCEMENTS_LABEL;
+	}
+
+	private static Button<Void> announcementsButton(Font font, ChatScreen screen) {
+		Button<Void> commands = commandsButton(font, screen);
+		int width = buttonWidth(font, announcementsLabel());
+		return new Button<>(commands.x() - GAP - width, commands.y(), width, HEIGHT, null);
 	}
 
 	private static int labelWidth(Font font) {
@@ -177,6 +189,15 @@ public final class ChannelBar {
 			tooltip = Component.literal("開啟自訂指令選單");
 		}
 
+		Button<Void> announcements = announcementsButton(font, screen);
+		boolean announcementsHovered = announcements.contains(mouseX, mouseY);
+		int unread = AnnouncementStore.totalUnread();
+		graphics.fill(announcements.x(), announcements.y(), announcements.x() + announcements.width(), announcements.y() + announcements.height(), announcementsHovered ? 0xC0505050 : 0x80000000);
+		EmojiPicker.text(graphics, font, announcementsLabel(), announcements.x() + 4, announcements.y() + 3, unread > 0 ? 0xFFF6E0A4 : 0xFFFFFFFF);
+		if (announcementsHovered) {
+			tooltip = Component.literal(unread > 0 ? "有 " + unread + " 則新公告" : "查看伺服器公告");
+		}
+
 		if (open) {
 			Button<Void> panel = panel(font, screen);
 			graphics.fill(panel.x(), panel.y(), panel.x() + panel.width(), panel.y() + panel.height(), 0xD0000000);
@@ -210,6 +231,12 @@ public final class ChannelBar {
 				selected = chip.value();
 				return true;
 			}
+		}
+		if (announcementsButton(font, screen).contains(mouseX, mouseY)) {
+			close();
+			EmojiPicker.close();
+			CommandMenuScreen.setScreen(new AnnouncementScreen(screen));
+			return true;
 		}
 		if (commandsButton(font, screen).contains(mouseX, mouseY)) {
 			close();

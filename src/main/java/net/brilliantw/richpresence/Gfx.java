@@ -8,6 +8,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 public final class Gfx {
 	//? if >=26.1 {
@@ -34,6 +35,18 @@ public final class Gfx {
 		//?} else {
 		/*graphics.drawString(font, text, x, y, color, false);
 		*///?}
+	}
+
+	public void text(Font font, Component text, int x, int y, int color) {
+		//? if >=26.1 {
+		graphics.text(font, text, x, y, color, false);
+		//?} else {
+		/*graphics.drawString(font, text, x, y, color, false);
+		*///?}
+	}
+
+	public void image(Identifier texture, int x, int y, int width, int height) {
+		graphics.blit(texture, x, y, x + width, y + height, 0f, 1f, 0f, 1f);
 	}
 
 	public void tooltip(Font font, List<Component> lines, int x, int y) {
