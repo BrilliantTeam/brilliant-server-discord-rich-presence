@@ -46,6 +46,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 			host = joined;
 			presence.start(label(host), state(host), imageKey(host));
 			AnnouncementStore.refreshAll(RichPresenceModClient::notifyUnread);
+			ModUpdate.check();
 		});
 
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
@@ -63,6 +64,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 			}
 		});
 		DiscordImageLinks.register();
+		ModUpdate.cleanup();
 	}
 
 	public static boolean isOnBrilliantServer() {
@@ -152,7 +154,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 		String name = client.getUser().getName();
 		HttpRequest request = HttpRequest.newBuilder(URI.create(RPConfig.WEBSITE_URL + "/api/presence?name=" + URLEncoder.encode(name, StandardCharsets.UTF_8)))
 				.timeout(Duration.ofSeconds(10))
-				.header("User-Agent", "Brilliant-Server-Mod")
+				.header("User-Agent", RPConfig.USER_AGENT)
 				.GET()
 				.build();
 		HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).whenComplete((response, error) -> client.execute(() -> {

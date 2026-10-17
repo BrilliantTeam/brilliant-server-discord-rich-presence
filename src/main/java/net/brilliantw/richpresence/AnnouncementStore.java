@@ -126,7 +126,7 @@ public final class AnnouncementStore {
 		}
 		HttpRequest request = HttpRequest.newBuilder(URI.create(url.toString()))
 				.timeout(Duration.ofSeconds(15))
-				.header("User-Agent", "Brilliant-Server-Mod")
+				.header("User-Agent", RPConfig.USER_AGENT)
 				.GET()
 				.build();
 		return HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).thenApply(response -> {

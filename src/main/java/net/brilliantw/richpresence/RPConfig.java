@@ -12,6 +12,12 @@ public final class RPConfig {
 			.map(container -> container.getMetadata().getVersion().getFriendlyString())
 			.orElse("unknown");
 
+	public static final String MOD_VERSION = FabricLoader.getInstance().getModContainer("brilliant-server-mod")
+			.map(container -> container.getMetadata().getVersion().getFriendlyString())
+			.orElse("0");
+
+	public static final String USER_AGENT = "Brilliant-Server-Mod/" + MOD_VERSION + " (MC " + MINECRAFT_VERSION + ")";
+
 	public static final String BASE_DOMAIN = "brilliantw.net";
 
 	public static final Map<String, String> SERVER_LABELS = Map.ofEntries(

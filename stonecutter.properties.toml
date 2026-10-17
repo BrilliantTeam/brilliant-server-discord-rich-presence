@@ -1,7 +1,7 @@
 mod.id = "brilliant-server-mod"
 mod.name = "Brilliant-Server-Mod"
 mod.group = "net.brilliantw"
-mod.version = "1.0"
+mod.version = "1.1"
 
 deps.fabric_loader = "0.19.3"
 deps.discordipc = "0.10.2"

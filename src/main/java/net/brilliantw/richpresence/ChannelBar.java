@@ -3,6 +3,7 @@ package net.brilliantw.richpresence;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 //? if >=26.1 {
@@ -110,7 +111,7 @@ public final class ChannelBar {
 	}
 
 	private static Button<Void> menuButton(Font font, ChatScreen screen) {
-		int width = Gfx.iconLabelWidth(font, Icons.MENU, MENU_LABEL) + 10 + (AnnouncementStore.totalUnread() > 0 ? 12 : 0);
+		int width = Gfx.iconLabelWidth(font, Icons.MENU, MENU_LABEL) + 10 + (badgeCount() > 0 ? 12 : 0);
 		return new Button<>(screen.width - 2 - EMOJI_BUTTON - GAP - width, barY(screen), width, HEIGHT, null);
 	}
 
@@ -143,6 +144,10 @@ public final class ChannelBar {
 
 	private static Button<Void> backButton(Font font, Button<Void> panel) {
 		return new Button<>(panel.x() + PADDING, panel.y() + PADDING, Gfx.iconLabelWidth(font, Icons.BACK, Theme.BACK) + 10, HEIGHT, null);
+	}
+
+	private static int badgeCount() {
+		return AnnouncementStore.totalUnread() + (ModUpdate.available() != null ? 1 : 0);
 	}
 
 	public static int menuRight(ChatScreen screen) {
@@ -182,8 +187,8 @@ public final class ChannelBar {
 		Button<Void> menu = menuButton(font, screen);
 		boolean menuHovered = menu.contains(mouseX, mouseY);
 		gfx.fill(menu.x(), menu.y(), menu.x() + menu.width(), menu.y() + menu.height(), ChatMenu.isOpen() || menuHovered ? 0xC0505050 : 0x80000000);
-		gfx.iconLabel(font, Icons.MENU, MENU_LABEL, menu.x(), menu.y(), menu.width() - (AnnouncementStore.totalUnread() > 0 ? 12 : 0), menu.height(), 0xFFFFFFFF);
-		int unread = AnnouncementStore.totalUnread();
+		gfx.iconLabel(font, Icons.MENU, MENU_LABEL, menu.x(), menu.y(), menu.width() - (badgeCount() > 0 ? 12 : 0), menu.height(), 0xFFFFFFFF);
+		int unread = badgeCount();
 		if (unread > 0) {
 			String badge = unread > 9 ? "9+" : String.valueOf(unread);
 			int bw = Math.max(9, font.width(badge) + 4);
@@ -192,7 +197,11 @@ public final class ChannelBar {
 			gfx.centered(font, badge, bx, menu.y() + 2, bw, HEIGHT - 4, 0xFFFFFFFF);
 		}
 		if (menuHovered) {
-			tooltip = Component.literal(unread > 0 ? "功能選單（" + unread + " 則新公告）" : "功能選單：公告、官網、常用訊息、互動與更多");
+			int announcements = AnnouncementStore.totalUnread();
+			String update = ModUpdate.available() != null ? "模組有新版本" : "";
+			String news = announcements > 0 ? announcements + " 則新公告" : "";
+			String extra = String.join("、", Stream.of(update, news).filter(s -> !s.isEmpty()).toList());
+			tooltip = Component.literal(extra.isEmpty() ? "功能選單：公告、官網、常用訊息、互動與更多" : "功能選單（" + extra + "）");
 		}
 
 		if (settingsOpen) {

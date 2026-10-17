@@ -123,6 +123,16 @@ public final class ChatMenu {
 	}
 
 	static List<Item> items() {
+		List<Item> items = new ArrayList<>();
+		ModUpdate.Latest update = ModUpdate.available();
+		if (update != null) {
+			items.add(new Item("資訊", "更新至 " + ModUpdate.label(update), update.notes.isEmpty() ? "輝煌模組有新版本" : update.notes, Theme.WARNING, page(UpdateScreen::new)));
+		}
+		items.addAll(baseItems());
+		return items;
+	}
+
+	private static List<Item> baseItems() {
 		int unread = AnnouncementStore.totalUnread();
 		return List.of(
 				new Item("資訊", unread > 0 ? "公告 " + unread : "公告", unread > 0 ? "有 " + unread + " 則新公告" : "伺服器公告", unread > 0 ? Theme.WARNING : INFO,

@@ -74,7 +74,7 @@ public final class GuideStore {
 	private static <T> void get(String path, Class<T> type, Consumer<T> done, Consumer<String> failed) {
 		HttpRequest request = HttpRequest.newBuilder(URI.create(API + path))
 				.timeout(Duration.ofSeconds(15))
-				.header("User-Agent", "Brilliant-Server-Mod")
+				.header("User-Agent", RPConfig.USER_AGENT)
 				.GET()
 				.build();
 		HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).whenComplete((response, error) -> {

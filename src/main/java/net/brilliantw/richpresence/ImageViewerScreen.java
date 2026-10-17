@@ -101,7 +101,7 @@ public final class ImageViewerScreen extends Screen {
 		URI target = proxied
 				? URI.create(RPConfig.WEBSITE_URL + "/api/announcements/media?u=" + URLEncoder.encode(url, StandardCharsets.UTF_8) + "&w=" + MAX_SIZE)
 				: source;
-		HttpRequest request = HttpRequest.newBuilder(target).timeout(Duration.ofSeconds(30)).header("User-Agent", "Brilliant-Server-Mod").GET().build();
+		HttpRequest request = HttpRequest.newBuilder(target).timeout(Duration.ofSeconds(30)).header("User-Agent", RPConfig.USER_AGENT).GET().build();
 		CompletableFuture<Loaded> future = HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).thenApply(response -> {
 			if (response.statusCode() != 200) {
 				throw new IllegalStateException("圖片載入失敗（HTTP " + response.statusCode() + "）");

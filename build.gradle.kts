@@ -2,7 +2,9 @@ plugins {
     id("dev.kikugie.loom-back-compat")
 }
 
-version = "${property("mod.version")}+${sc.current.version}"
+val buildNumber = System.getenv("BUILD_NUMBER")?.takeIf { it.matches(Regex("\\d+")) } ?: "0"
+val fullVersion = "${property("mod.version")}.$buildNumber"
+version = "$fullVersion+${sc.current.version}"
 base.archivesName = property("mod.id") as String
 
 val requiredJava: JavaVersion = when {
@@ -64,7 +66,8 @@ tasks {
         val props = buildMap {
             register("id", "mod.id")
             register("name", "mod.name")
-            register("version", "mod.version")
+            inputs.property("version", fullVersion)
+            set("version", fullVersion)
             register("minecraft", "mod.mc_compat")
         }
 

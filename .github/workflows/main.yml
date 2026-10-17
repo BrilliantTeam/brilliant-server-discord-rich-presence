@@ -10,6 +10,7 @@ env:
   MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
   MODRINTH_PROJECT: sQx0NhuP
   FABRIC_API_PROJECT: P7dR8mSH
+  BUILD_NUMBER: ${{ github.run_number }}
 
 permissions:
   contents: write

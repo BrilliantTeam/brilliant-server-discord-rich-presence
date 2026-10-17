@@ -152,7 +152,7 @@ public final class RemoteImages {
 		}
 		HttpRequest request = HttpRequest.newBuilder(URI.create(RPConfig.WEBSITE_URL + src + "&w=" + requestWidth))
 				.timeout(Duration.ofSeconds(20))
-				.header("User-Agent", "Brilliant-Server-Mod")
+				.header("User-Agent", RPConfig.USER_AGENT)
 				.GET()
 				.build();
 		HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).whenComplete((response, error) -> Minecraft.getInstance().execute(() -> {
