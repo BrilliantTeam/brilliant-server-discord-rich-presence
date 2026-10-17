@@ -1,9 +1,13 @@
 package net.brilliantw.richpresence.mixin;
 
 import net.brilliantw.richpresence.ChannelBar;
+import net.brilliantw.richpresence.ChatMenu;
+import net.brilliantw.richpresence.ColorCodes;
 import net.brilliantw.richpresence.EmojiPicker;
 import net.brilliantw.richpresence.Gfx;
 import net.brilliantw.richpresence.PrivateWindow;
+import net.brilliantw.richpresence.QuickMessages;
+import net.brilliantw.richpresence.RichPresenceModClient;
 //? if >=26.1 {
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 //?} else {
@@ -46,6 +50,8 @@ public abstract class ChatScreenMixin extends Screen {
 	@Inject(method = "init", at = @At("TAIL"))
 	private void brilliant$addPrivateInput(CallbackInfo ci) {
 		addRenderableWidget(PrivateWindow.createInput());
+		addRenderableWidget(ChatMenu.createSearch());
+		ChatMenu.onInit((ChatScreen) (Object) this);
 	}
 
 	//? if >=26.1 {
@@ -55,7 +61,14 @@ public abstract class ChatScreenMixin extends Screen {
 	/*@Inject(method = "render", at = @At("HEAD"))
 	private void brilliant$renderPrivateWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
 	*///?}
-		PrivateWindow.render(new Gfx(graphics), width, height, mouseX, mouseY, true);
+		Gfx gfx = new Gfx(graphics);
+		PrivateWindow.render(gfx, width, height, mouseX, mouseY, true);
+		if (!ChatMenu.isOpen() && getFocused() == ChatMenu.search()) {
+			setFocused(input);
+		}
+		if (!brilliant$typingCommand() && RichPresenceModClient.isOnBrilliantServer()) {
+			ChatMenu.renderBackground((ChatScreen) (Object) this, gfx);
+		}
 	}
 
 	//? if >=26.1 {
@@ -65,11 +78,25 @@ public abstract class ChatScreenMixin extends Screen {
 	/*@Inject(method = "render", at = @At("TAIL"))
 	private void brilliant$renderEmojiPicker(GuiGraphics graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
 	*///?}
+		ChatScreen screen = (ChatScreen) (Object) this;
+		Gfx gfx = new Gfx(graphics);
 		if (!brilliant$typingCommand()) {
-			ChannelBar.render((ChatScreen) (Object) this, graphics, mouseX, mouseY);
-			EmojiPicker.render((ChatScreen) (Object) this, graphics, mouseX, mouseY);
+			ChannelBar.render(screen, graphics, mouseX, mouseY);
+			EmojiPicker.render(screen, graphics, mouseX, mouseY);
+			if (RichPresenceModClient.isOnBrilliantServer()) {
+				QuickMessages.render(screen, gfx, input.getValue(), mouseX, mouseY);
+				ChatMenu.render(screen, gfx, mouseX, mouseY);
+			}
 		}
-		PrivateWindow.renderOverlay(new Gfx(graphics), width, height, mouseX, mouseY);
+		PrivateWindow.renderOverlay(gfx, width, height, mouseX, mouseY);
+		if (RichPresenceModClient.isOnBrilliantServer()) {
+			EditBox privateInput = PrivateWindow.focusedInput(screen);
+			if (privateInput != null) {
+				ColorCodes.renderPreview(gfx, font, privateInput.getValue(), privateInput.getX(), privateInput.getY() - 2, width - privateInput.getX() - 4);
+			} else {
+				ColorCodes.renderPreview(gfx, font, input.getValue(), 2, brilliant$typingCommand() ? height - 16 : ChannelBar.barY(screen) - 2, width - 4);
+			}
+		}
 	}
 
 	@Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
@@ -83,14 +110,16 @@ public abstract class ChatScreenMixin extends Screen {
 			return;
 		}
 		if (EmojiPicker.mouseClicked(screen, event.x(), event.y(), event.button())
-				|| ChannelBar.mouseClicked(screen, event.x(), event.y(), event.button())) {
+				|| QuickMessages.mouseClicked(screen, input.getValue(), event.x(), event.y(), event.button())
+				|| ChannelBar.mouseClicked(screen, event.x(), event.y(), event.button())
+				|| ChatMenu.mouseClicked(screen, event.x(), event.y(), event.button())) {
 			cir.setReturnValue(true);
 		}
 	}
 
 	@Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
 	private void brilliant$typePrivateMessage(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
-		if (PrivateWindow.keyPressed((ChatScreen) (Object) this, event)) {
+		if (PrivateWindow.keyPressed((ChatScreen) (Object) this, event) || ChatMenu.keyPressed((ChatScreen) (Object) this, event)) {
 			cir.setReturnValue(true);
 		}
 	}
@@ -120,7 +149,8 @@ public abstract class ChatScreenMixin extends Screen {
 		if (brilliant$typingCommand()) {
 			return;
 		}
-		if (EmojiPicker.mouseScrolled(screen, mouseX, mouseY, scrollY)) {
+		if (EmojiPicker.mouseScrolled(screen, mouseX, mouseY, scrollY) || QuickMessages.mouseScrolled(screen, mouseX, mouseY, scrollY)
+				|| ChatMenu.mouseScrolled(screen, mouseX, mouseY, scrollY)) {
 			cir.setReturnValue(true);
 		}
 	}

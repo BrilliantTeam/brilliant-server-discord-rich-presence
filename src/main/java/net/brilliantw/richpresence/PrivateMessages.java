@@ -31,6 +31,8 @@ public final class PrivateMessages {
 		boolean collapsed;
 		int x = 4;
 		int y = 4;
+		int width = 240;
+		int body = 96;
 	}
 
 	public record Message(boolean mine, String server, String text, long time) {}
@@ -133,6 +135,19 @@ public final class PrivateMessages {
 
 	public static int windowY() {
 		return settings().y;
+	}
+
+	public static int windowWidth() {
+		return settings().width;
+	}
+
+	public static int bodyHeight() {
+		return settings().body;
+	}
+
+	public static void resizeWindow(int width, int body) {
+		settings().width = width;
+		settings().body = body;
 	}
 
 	public static void moveWindow(int x, int y) {

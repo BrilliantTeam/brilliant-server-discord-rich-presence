@@ -103,6 +103,7 @@ public final class RemoteImages {
 	}
 
 	private static final String MEDIA_PREFIX = "/api/announcements/media?";
+	public static final String HEAD_PREFIX = "/api/head?name=";
 	private static final int MAX_ENTRIES = 96;
 	private static final long RETRY_MS = 30 * 1000;
 	private static final int MAX_BYTES = 8 * 1024 * 1024;
@@ -145,7 +146,7 @@ public final class RemoteImages {
 		}
 		Entry created = new Entry();
 		CACHE.put(key, created);
-		if (src == null || !src.startsWith(MEDIA_PREFIX)) {
+		if (src == null || !(src.startsWith(MEDIA_PREFIX) || src.startsWith(HEAD_PREFIX))) {
 			created.state = State.FAILED;
 			return created;
 		}

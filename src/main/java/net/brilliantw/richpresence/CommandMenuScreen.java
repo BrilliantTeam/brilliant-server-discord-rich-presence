@@ -238,7 +238,7 @@ public final class CommandMenuScreen extends Screen {
 		}
 		Rect p = panel();
 		int buttonWidth = 44;
-		int titleWidth = font.width(title) + 20;
+		int titleWidth = Theme.titleX(font, p.x()) - p.x() + font.width(title) + 10;
 		searchBox = addRenderableWidget(new EditBox(font, p.x() + titleWidth, p.y() + 4, p.w() - titleWidth - (buttonWidth + 4) * 2 - 8, 18, Component.literal("搜尋")));
 		searchBox.setMaxLength(64);
 		searchBox.setHint(Component.literal("搜尋指令、備註或分組…  按 Enter 執行第一個").withStyle(ChatFormatting.DARK_GRAY));
@@ -277,7 +277,8 @@ public final class CommandMenuScreen extends Screen {
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + p.h(), Theme.PANEL);
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + HEADER, Theme.HEADER);
 		gfx.fill(p.x(), p.y() + HEADER - 1, p.x() + p.w(), p.y() + HEADER, Theme.ACCENT_DIM);
-		gfx.text(font, title.getString(), p.x() + 10, p.y() + 9, Theme.ACCENT);
+		gfx.text(font, title.getString(), Theme.titleX(font, p.x()), p.y() + 9, Theme.ACCENT);
+		Theme.drawBack(gfx, font, p.x(), p.y(), mouseX, mouseY);
 
 		List<Component> tooltip = new ArrayList<>();
 		drawSidebar(gfx, mouseX, mouseY, tooltip);
@@ -483,6 +484,10 @@ public final class CommandMenuScreen extends Screen {
 		double mouseX = event.x();
 		double mouseY = event.y();
 		if (!panel().contains(mouseX, mouseY)) {
+			onClose();
+			return true;
+		}
+		if (Theme.backHit(font, panel().x(), panel().y(), mouseX, mouseY)) {
 			onClose();
 			return true;
 		}

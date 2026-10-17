@@ -1,5 +1,7 @@
 package net.brilliantw.richpresence;
 
+import net.minecraft.client.gui.Font;
+
 public final class Theme {
 	public static final int PANEL = 0xF0121619;
 	public static final int HEADER = 0xFF1A2026;
@@ -18,5 +20,25 @@ public final class Theme {
 	public static final int WARNING = 0xFFF6E0A4;
 	public static final int DANGER = 0xFFFF7A7A;
 
+	public static final String BACK = "‹ 返回";
+
 	private Theme() {}
+
+	public static int backWidth(Font font) {
+		return font.width(BACK) + 12;
+	}
+
+	public static int titleX(Font font, int panelX) {
+		return panelX + 6 + backWidth(font) + 8;
+	}
+
+	public static boolean backHit(Font font, int panelX, int panelY, double mouseX, double mouseY) {
+		return mouseX >= panelX + 6 && mouseX < panelX + 6 + backWidth(font) && mouseY >= panelY + 6 && mouseY < panelY + 20;
+	}
+
+	public static void drawBack(Gfx gfx, Font font, int panelX, int panelY, int mouseX, int mouseY) {
+		boolean hovered = backHit(font, panelX, panelY, mouseX, mouseY);
+		gfx.fill(panelX + 6, panelY + 6, panelX + 6 + backWidth(font), panelY + 20, hovered ? CHIP_HOVER : CHIP);
+		gfx.text(font, BACK, panelX + 12, panelY + 9, TEXT);
+	}
 }

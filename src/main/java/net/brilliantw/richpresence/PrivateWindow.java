@@ -1,6 +1,8 @@
 package net.brilliantw.richpresence;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.ChatFormatting;
@@ -24,11 +26,15 @@ public final class PrivateWindow {
 
 	private record Tab(Rect rect, PrivateMessages.Conversation conversation) {}
 
+	private record Line(FormattedCharSequence text, String face) {}
+
 	private enum Popup { NONE, EMOJI, SHOWCASE }
 
-	private static final int WIDTH = 240;
+	private static final int MIN_WIDTH = 170;
+	private static final int MIN_BODY = 40;
+	private static final int FACE = 8;
+	private static final int GRIP = 7;
 	private static final int HEADER = 14;
-	private static final int BODY = 96;
 	private static final int FOOTER = 20;
 	private static final int PAD = 4;
 	private static final int LINE = 10;
@@ -46,11 +52,34 @@ public final class PrivateWindow {
 	private static double dragY;
 	private static double scroll;
 	private static double emojiScroll;
+	private static boolean resizing;
+	private static double resizeX;
+	private static double resizeY;
+	private static int resizeWidth;
+	private static int resizeBody;
 
 	private PrivateWindow() {}
 
 	private static Font font() {
 		return Minecraft.getInstance().font;
+	}
+
+	private static int bodyHeight() {
+		int screenHeight = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+		return Math.clamp(PrivateMessages.bodyHeight(), MIN_BODY, Math.max(MIN_BODY, screenHeight - HEADER - FOOTER - 8));
+	}
+
+	private static void face(Gfx gfx, String name, int x, int y) {
+		RemoteImages.Entry entry = RemoteImages.get(RemoteImages.HEAD_PREFIX + URLEncoder.encode(name, StandardCharsets.UTF_8), RemoteImages.requestWidth(FACE));
+		if (entry.state == RemoteImages.State.READY) {
+			RemoteImages.draw(gfx, entry, x, y, FACE, FACE);
+		} else {
+			gfx.fill(x, y, x + FACE, y + FACE, Theme.CHIP);
+		}
+	}
+
+	private static Rect grip(Rect frame) {
+		return new Rect(frame.x() + frame.w() - GRIP, frame.y() + frame.h() - GRIP, GRIP, GRIP);
 	}
 
 	private static boolean visible() {
@@ -64,6 +93,10 @@ public final class PrivateWindow {
 		input.setResponder(value -> draft = value);
 		input.visible = false;
 		return input;
+	}
+
+	public static EditBox focusedInput(ChatScreen screen) {
+		return inputFocused(screen) ? input : null;
 	}
 
 	public static boolean inputFocused(ChatScreen screen) {
@@ -110,8 +143,8 @@ public final class PrivateWindow {
 	}
 
 	private static Rect frame(int screenWidth, int screenHeight, boolean interactive) {
-		int w = PrivateMessages.collapsed() ? font().width(pillLabel()) + 12 : Math.min(WIDTH, screenWidth - 8);
-		int h = PrivateMessages.collapsed() ? HEADER : HEADER + BODY + (expandedInteractive(interactive) ? FOOTER : 0);
+		int w = PrivateMessages.collapsed() ? font().width(pillLabel()) + 12 : Math.clamp(PrivateMessages.windowWidth(), MIN_WIDTH, Math.max(MIN_WIDTH, screenWidth - 8));
+		int h = PrivateMessages.collapsed() ? HEADER : HEADER + bodyHeight() + (expandedInteractive(interactive) ? FOOTER : 0);
 		int x = Math.clamp(PrivateMessages.windowX(), 0, Math.max(0, screenWidth - w));
 		int y = Math.clamp(PrivateMessages.windowY(), 0, Math.max(0, screenHeight - h));
 		return new Rect(x, y, w, h);
@@ -126,7 +159,7 @@ public final class PrivateWindow {
 		int x = frame.x() + PAD;
 		int limit = frame.x() + frame.w() - (interactive ? 42 : 16);
 		for (PrivateMessages.Conversation conversation : PrivateMessages.conversations()) {
-			int w = font().width(tabLabel(conversation)) + 8;
+			int w = font().width(tabLabel(conversation)) + 8 + FACE + 3;
 			if (x + w > limit) {
 				break;
 			}
@@ -142,7 +175,7 @@ public final class PrivateWindow {
 	}
 
 	private static Rect body(Rect frame) {
-		return new Rect(frame.x() + PAD, frame.y() + HEADER + 2, frame.w() - PAD * 2, BODY - 4);
+		return new Rect(frame.x() + PAD, frame.y() + HEADER + 2, frame.w() - PAD * 2, bodyHeight() - 4);
 	}
 
 	private static Rect footerChip(Rect frame, int slot) {
@@ -152,7 +185,7 @@ public final class PrivateWindow {
 			int w = font().width(labels[i]) + 10;
 			right -= w;
 			if (i == slot) {
-				return new Rect(right, frame.y() + HEADER + BODY + 2, w, FOOTER - 4);
+				return new Rect(right, frame.y() + HEADER + bodyHeight() + 2, w, FOOTER - 4);
 			}
 			right -= 2;
 		}
@@ -161,17 +194,17 @@ public final class PrivateWindow {
 
 	private static Rect inputRect(Rect frame) {
 		int x = frame.x() + PAD;
-		return new Rect(x, frame.y() + HEADER + BODY + 2, footerChip(frame, 2).x() - 3 - x, FOOTER - 4);
+		return new Rect(x, frame.y() + HEADER + bodyHeight() + 2, footerChip(frame, 2).x() - 3 - x, FOOTER - 4);
 	}
 
 	private static Rect emojiPanel(Rect frame) {
 		int w = EMOJI_COLUMNS * EMOJI_CELL + 8;
 		int h = EMOJI_ROWS * EMOJI_CELL + 8;
 		Rect anchor = footerChip(frame, 1);
-		int y = frame.y() + HEADER + BODY + FOOTER + 2;
+		int y = frame.y() + HEADER + bodyHeight() + FOOTER + 2;
 		int screenHeight = Minecraft.getInstance().getWindow().getGuiScaledHeight();
 		if (y + h > screenHeight) {
-			y = frame.y() + HEADER + BODY - h;
+			y = frame.y() + HEADER + bodyHeight() - h;
 		}
 		return new Rect(Math.max(0, anchor.x() + anchor.w() - w), y, w, h);
 	}
@@ -179,7 +212,7 @@ public final class PrivateWindow {
 	private static List<Rect> showcaseItems(Rect frame) {
 		Rect anchor = footerChip(frame, 2);
 		int w = SHOWCASE.stream().mapToInt(item -> font().width(item[0] + " " + item[1])).max().orElse(0) + 12;
-		int y = frame.y() + HEADER + BODY + FOOTER + 2;
+		int y = frame.y() + HEADER + bodyHeight() + FOOTER + 2;
 		List<Rect> rects = new ArrayList<>();
 		for (int i = 0; i < SHOWCASE.size(); i++) {
 			rects.add(new Rect(Math.max(0, anchor.x() + anchor.w() - w), y + i * 17, w, 16));
@@ -233,7 +266,10 @@ public final class PrivateWindow {
 		for (Tab tab : tabs(frame, interactive)) {
 			boolean isSelected = tab.conversation() == selected;
 			int color = tab.conversation().unread > 0 ? Theme.WARNING : isSelected ? Theme.TEXT : Theme.TEXT_SECONDARY;
-			chip(gfx, tab.rect(), tabLabel(tab.conversation()), color, interactive && tab.rect().contains(mouseX, mouseY), isSelected);
+			Rect r = tab.rect();
+			chip(gfx, r, "", color, interactive && r.contains(mouseX, mouseY), isSelected);
+			face(gfx, tab.conversation().name, r.x() + 4, r.y() + (r.h() - FACE) / 2);
+			gfx.text(font, tabLabel(tab.conversation()), r.x() + 4 + FACE + 3, r.y() + (r.h() - 8) / 2, color);
 		}
 		chip(gfx, headerButton(frame, 0), "—", Theme.TEXT, interactive && headerButton(frame, 0).contains(mouseX, mouseY), false);
 		if (interactive) {
@@ -257,6 +293,13 @@ public final class PrivateWindow {
 			chip(gfx, footerChip(frame, 0), "傳送", Theme.ACCENT, footerChip(frame, 0).contains(mouseX, mouseY), false);
 			chip(gfx, footerChip(frame, 1), "表情", Theme.TEXT, footerChip(frame, 1).contains(mouseX, mouseY), popup == Popup.EMOJI);
 			chip(gfx, footerChip(frame, 2), "展示", Theme.TEXT, footerChip(frame, 2).contains(mouseX, mouseY), popup == Popup.SHOWCASE);
+			Rect g = grip(frame);
+			int gripColor = resizing || g.contains(mouseX, mouseY) ? Theme.ACCENT : Theme.TEXT_DIM;
+			for (int i = 0; i < 3; i++) {
+				int d = i * 2 + 1;
+				gfx.fill(g.x() + g.w() - d - 1, g.y() + g.h() - 2, g.x() + g.w() - d, g.y() + g.h() - 1, gripColor);
+				gfx.fill(g.x() + g.w() - 2, g.y() + g.h() - d - 1, g.x() + g.w() - 1, g.y() + g.h() - d, gripColor);
+			}
 		} else {
 			popup = Popup.NONE;
 		}
@@ -294,6 +337,8 @@ public final class PrivateWindow {
 				tooltip.add(Component.literal(PrivateMessages.hideInChat() ? "私訊目前只顯示在這個視窗，點擊改為也顯示在聊天欄" : "私訊目前也會顯示在聊天欄，點擊改為只顯示在這個視窗"));
 			} else if (PrivateMessages.selected() != null && headerButton(frame, 2).contains(mouseX, mouseY)) {
 				tooltip.add(Component.literal("關閉這個對話"));
+			} else if (expandedInteractive(true) && grip(frame).contains(mouseX, mouseY)) {
+				tooltip.add(Component.literal("拖曳以調整視窗大小"));
 			} else if (mouseY >= frame.y() && mouseY < frame.y() + HEADER && frame.contains(mouseX, mouseY)) {
 				tooltip.add(Component.literal("拖曳標題列可以移動視窗"));
 			}
@@ -345,12 +390,16 @@ public final class PrivateWindow {
 		if (selected == null) {
 			return;
 		}
-		List<FormattedCharSequence> lines = new ArrayList<>();
+		List<Line> lines = new ArrayList<>();
+		String me = Minecraft.getInstance().getUser().getName();
 		for (PrivateMessages.Message message : selected.messages) {
 			String name = message.mine() ? "我" : selected.display;
 			Component who = Component.literal((message.server().isEmpty() ? name : message.server() + "｜" + name) + "：")
 					.withStyle(Style.EMPTY.withColor(TextColor.fromRgb((message.mine() ? Theme.ACCENT : Theme.WARNING) & 0xFFFFFF)));
-			lines.addAll(font().split(who.copy().append(Component.literal(message.text()).withStyle(ChatFormatting.WHITE)), body.w()));
+			List<FormattedCharSequence> wrapped = font().split(who.copy().append(Component.literal(message.text()).withStyle(ChatFormatting.WHITE)), body.w() - FACE - 3);
+			for (int i = 0; i < wrapped.size(); i++) {
+				lines.add(new Line(wrapped.get(i), i == 0 ? (message.mine() ? me : selected.name) : null));
+			}
 		}
 		int visible = body.h() / LINE;
 		int maxScroll = Math.max(0, lines.size() - visible);
@@ -360,7 +409,11 @@ public final class PrivateWindow {
 		int end = Math.min(lines.size(), start + visible);
 		int y = body.y() + body.h() - (end - start) * LINE;
 		for (int i = start; i < end; i++) {
-			gfx.text(font(), lines.get(i), body.x(), y, 0xFFFFFFFF);
+			Line line = lines.get(i);
+			if (line.face() != null) {
+				face(gfx, line.face(), body.x(), y);
+			}
+			gfx.text(font(), line.text(), body.x() + FACE + 3, y, 0xFFFFFFFF);
 			y += LINE;
 		}
 		if (interactive && maxScroll > 0) {
@@ -405,6 +458,15 @@ public final class PrivateWindow {
 			return true;
 		}
 		PrivateMessages.Conversation selected = PrivateMessages.selected();
+		if (expandedInteractive(true) && grip(frame).contains(mouseX, mouseY)) {
+			resizing = true;
+			resizeX = mouseX;
+			resizeY = mouseY;
+			resizeWidth = frame.w();
+			resizeBody = bodyHeight();
+			popup = Popup.NONE;
+			return true;
+		}
 		if (headerButton(frame, 0).contains(mouseX, mouseY)) {
 			PrivateMessages.setCollapsed(true);
 			return true;
@@ -458,6 +520,12 @@ public final class PrivateWindow {
 	}
 
 	public static boolean mouseDragged(ChatScreen screen, double mouseX, double mouseY) {
+		if (resizing) {
+			int width = Math.clamp(resizeWidth + (int) (mouseX - resizeX), MIN_WIDTH, Math.max(MIN_WIDTH, screen.width - 8));
+			int body = Math.clamp(resizeBody + (int) (mouseY - resizeY), MIN_BODY, Math.max(MIN_BODY, screen.height - HEADER - FOOTER - 8));
+			PrivateMessages.resizeWindow(width, body);
+			return true;
+		}
 		if (!dragging) {
 			return false;
 		}
@@ -466,6 +534,11 @@ public final class PrivateWindow {
 	}
 
 	public static boolean mouseReleased(ChatScreen screen, double mouseX, double mouseY) {
+		if (resizing) {
+			resizing = false;
+			PrivateMessages.saveSettings();
+			return true;
+		}
 		if (!dragging) {
 			return false;
 		}

@@ -80,8 +80,8 @@ public final class GuideScreen extends Screen {
 	@Override
 	protected void init() {
 		Rect p = panel();
-		int x = p.x() + 10 + font.width(title) + 10;
-		int w = Math.max(80, Math.min(220, backChip().x() - 6 - x));
+		int x = Theme.titleX(font, p.x()) + font.width(title) + 10;
+		int w = Math.max(80, Math.min(220, browserChip().x() - 6 - x));
 		search = new EditBox(font, x, p.y() + 5, w, 16, Component.literal("搜尋"));
 		search.setMaxLength(60);
 		search.setHint(Component.literal("搜尋官網文章…").withStyle(ChatFormatting.DARK_GRAY));
@@ -110,12 +110,6 @@ public final class GuideScreen extends Screen {
 		Rect p = panel();
 		int w = font.width("瀏覽器開啟") + 12;
 		return new Rect(p.x() + p.w() - 8 - w, p.y() + 6, w, CHIP_HEIGHT);
-	}
-
-	private Rect backChip() {
-		Rect browser = browserChip();
-		int w = font.width("返回") + 12;
-		return new Rect(browser.x() - 3 - w, browser.y(), w, CHIP_HEIGHT);
 	}
 
 	private Rect retryChip(int y) {
@@ -286,11 +280,9 @@ public final class GuideScreen extends Screen {
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + p.h(), Theme.PANEL);
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + HEADER, Theme.HEADER);
 		gfx.fill(p.x(), p.y() + HEADER - 1, p.x() + p.w(), p.y() + HEADER, Theme.ACCENT_DIM);
-		gfx.text(font, title.getString(), p.x() + 10, p.y() + 9, Theme.ACCENT);
+		gfx.text(font, title.getString(), Theme.titleX(font, p.x()), p.y() + 9, Theme.ACCENT);
+		Theme.drawBack(gfx, font, p.x(), p.y(), mouseX, mouseY);
 		drawChip(gfx, browserChip(), "瀏覽器開啟", mouseX, mouseY);
-		if (articleSlug != null) {
-			drawChip(gfx, backChip(), "返回", mouseX, mouseY);
-		}
 
 		List<Component> tooltip = new ArrayList<>();
 		int innerWidth = l.w() - 4 - PAD * 2;
@@ -408,12 +400,12 @@ public final class GuideScreen extends Screen {
 			CommandMenuScreen.setScreen(parent);
 			return true;
 		}
-		if (browserChip().contains(mouseX, mouseY)) {
-			ConfirmLinkScreen.confirmLinkNow(this, URI.create(browserUrl()));
+		if (Theme.backHit(font, panel().x(), panel().y(), mouseX, mouseY)) {
+			onClose();
 			return true;
 		}
-		if (articleSlug != null && backChip().contains(mouseX, mouseY)) {
-			back();
+		if (browserChip().contains(mouseX, mouseY)) {
+			ConfirmLinkScreen.confirmLinkNow(this, URI.create(browserUrl()));
 			return true;
 		}
 		Rect l = list();

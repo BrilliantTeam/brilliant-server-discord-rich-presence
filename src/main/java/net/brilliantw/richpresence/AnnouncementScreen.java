@@ -101,7 +101,7 @@ public final class AnnouncementScreen extends Screen {
 	private List<Rect> tabs() {
 		Rect p = panel();
 		List<Rect> rects = new ArrayList<>();
-		int x = p.x() + 10 + font.width(title) + 12;
+		int x = Theme.titleX(font, p.x()) + font.width(title) + 12;
 		for (AnnouncementStore.Board b : AnnouncementStore.BOARDS) {
 			int w = font.width(tabLabel(b)) + 12;
 			rects.add(new Rect(x, p.y() + 6, w, CHIP_HEIGHT));
@@ -201,7 +201,8 @@ public final class AnnouncementScreen extends Screen {
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + p.h(), Theme.PANEL);
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + HEADER, Theme.HEADER);
 		gfx.fill(p.x(), p.y() + HEADER - 1, p.x() + p.w(), p.y() + HEADER, Theme.ACCENT_DIM);
-		gfx.text(font, title.getString(), p.x() + 10, p.y() + 9, Theme.ACCENT);
+		gfx.text(font, title.getString(), Theme.titleX(font, p.x()), p.y() + 9, Theme.ACCENT);
+		Theme.drawBack(gfx, font, p.x(), p.y(), mouseX, mouseY);
 
 		List<Component> tooltip = new ArrayList<>();
 		List<Rect> tabs = tabs();
@@ -322,6 +323,10 @@ public final class AnnouncementScreen extends Screen {
 		double mouseX = event.x();
 		double mouseY = event.y();
 		if (!panel().contains(mouseX, mouseY)) {
+			onClose();
+			return true;
+		}
+		if (Theme.backHit(font, panel().x(), panel().y(), mouseX, mouseY)) {
 			onClose();
 			return true;
 		}

@@ -9,6 +9,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -24,7 +25,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 	private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
 	private final DiscordPresenceManager presence = new DiscordPresenceManager();
-	private String host;
+	private static String host;
 	private Connection session;
 	private int ticks;
 	private boolean polling;
@@ -74,7 +75,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 			return null;
 		}
 
-		String host = server.ip.toLowerCase().split(":")[0];
+		String host = server.ip.toLowerCase(Locale.ROOT).split(":")[0];
 		return host.equals(RPConfig.BASE_DOMAIN) || host.endsWith("." + RPConfig.BASE_DOMAIN) ? host : null;
 	}
 
@@ -110,6 +111,15 @@ public final class RichPresenceModClient implements ClientModInitializer {
 		session = null;
 		host = null;
 		presence.stop();
+	}
+
+	public static String serverName() {
+		if (host == null) {
+			return "";
+		}
+		String label = label(host);
+		int split = label.indexOf('｜');
+		return split < 0 ? "" : label.substring(split + 1);
 	}
 
 	private static String label(String host) {

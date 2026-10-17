@@ -16,13 +16,9 @@ import net.minecraft.network.chat.Component;
 public final class ChannelBar {
 	private record Channel(String name, String prefix, int color) {}
 
-	private record Action(String label, String command, boolean insert) {
-		Action(String label, String command) {
-			this(label, command, false);
-		}
-	}
+	record Action(String label, String command) {}
 
-	private record Row(String name, int color, List<Action> actions) {}
+	record Row(String name, int color, List<Action> actions) {}
 
 	private record Button<T>(int x, int y, int width, int height, T value) {
 		boolean contains(double mouseX, double mouseY) {
@@ -46,7 +42,7 @@ public final class ChannelBar {
 			new Channel("領地", "*", RESIDENCE)
 	);
 
-	private static final List<Row> ROWS = List.of(
+	static final List<Row> ROWS = List.of(
 			new Row("聊天頻道", CHAT, List.of(new Action("切換發言", "joinchat"), new Action("讀取", "listenchat"), new Action("關閉讀取", "leavechat"))),
 			new Row("交易頻道", TRADE, List.of(new Action("切換發言", "jointrade"), new Action("讀取", "listentrade"), new Action("關閉讀取", "leavetrade"))),
 			new Row("區域頻道", AREA, List.of(new Action("切換發言", "joinarea"), new Action("讀取", "listenarea"), new Action("關閉讀取", "leavearea"))),
@@ -56,23 +52,14 @@ public final class ChannelBar {
 			new Row("顯示", SYSTEM, List.of(new Action("遊戲廣播", "bla"), new Action("系統訊息", "tsm")))
 	);
 
-	private static final List<Row> INTERACT_ROWS = List.of(
-			new Row("展示", 0xFFCFFFC0, List.of(new Action("手上物品", "[i]", true), new Action("背包", "[inv]", true), new Action("終界箱", "[ender]", true))),
-			new Row("動作", 0xFFF6E0A4, List.of(new Action("坐下", "sit"), new Action("躺下", "lay"), new Action("旋轉", "spin"), new Action("趴下", "bellyflop")))
-	);
-
-	private static final String TOGGLE_LABEL = "頻道設定";
-	private static final String INTERACT_LABEL = "互動";
-	private static final String COMMANDS_LABEL = "自訂指令";
-	private static final String ANNOUNCEMENTS_LABEL = "公告";
-	private static final String GUIDE_LABEL = "官網";
+	private static final String MENU_LABEL = "☰ 選單";
 	private static final int HEIGHT = 14;
 	private static final int GAP = 2;
 	private static final int PADDING = 3;
 	private static final int EMOJI_BUTTON = 14;
 
 	private static int selected;
-	private static List<Row> openRows;
+	private static boolean settingsOpen;
 
 	private ChannelBar() {}
 
@@ -81,7 +68,18 @@ public final class ChannelBar {
 	}
 
 	public static void close() {
-		openRows = null;
+		settingsOpen = false;
+		QuickMessages.close();
+		ChatMenu.close();
+	}
+
+	public static boolean settingsOpen() {
+		return settingsOpen;
+	}
+
+	public static void openSettings() {
+		close();
+		settingsOpen = true;
 	}
 
 	public static String applyPrefix(String message) {
@@ -92,7 +90,7 @@ public final class ChannelBar {
 		return prefix + message;
 	}
 
-	private static int barY(ChatScreen screen) {
+	public static int barY(ChatScreen screen) {
 		return screen.height - 16 - HEIGHT;
 	}
 
@@ -111,65 +109,46 @@ public final class ChannelBar {
 		return buttons;
 	}
 
-	private static Button<Void> toggle(Font font, ChatScreen screen) {
-		int width = buttonWidth(font, TOGGLE_LABEL);
+	private static Button<Void> menuButton(Font font, ChatScreen screen) {
+		int width = buttonWidth(font, MENU_LABEL) + (AnnouncementStore.totalUnread() > 0 ? 10 : 0);
 		return new Button<>(screen.width - 2 - EMOJI_BUTTON - GAP - width, barY(screen), width, HEIGHT, null);
 	}
 
-	private static Button<Void> commandsButton(Font font, ChatScreen screen) {
-		Button<Void> toggle = toggle(font, screen);
-		int width = buttonWidth(font, COMMANDS_LABEL);
-		return new Button<>(toggle.x() - GAP - width, toggle.y(), width, HEIGHT, null);
-	}
-
-	private static String announcementsLabel() {
-		int unread = AnnouncementStore.totalUnread();
-		return unread > 0 ? ANNOUNCEMENTS_LABEL + " " + unread : ANNOUNCEMENTS_LABEL;
-	}
-
-	private static Button<Void> announcementsButton(Font font, ChatScreen screen) {
-		Button<Void> commands = commandsButton(font, screen);
-		int width = buttonWidth(font, announcementsLabel());
-		return new Button<>(commands.x() - GAP - width, commands.y(), width, HEIGHT, null);
-	}
-
-	private static Button<Void> guideButton(Font font, ChatScreen screen) {
-		Button<Void> announcements = announcementsButton(font, screen);
-		int width = buttonWidth(font, GUIDE_LABEL);
-		return new Button<>(announcements.x() - GAP - width, announcements.y(), width, HEIGHT, null);
-	}
-
-	private static Button<Void> interactButton(Font font, ChatScreen screen) {
-		Button<Void> guide = guideButton(font, screen);
-		int width = buttonWidth(font, INTERACT_LABEL);
-		return new Button<>(guide.x() - GAP - width, guide.y(), width, HEIGHT, null);
-	}
-
 	private static int labelWidth(Font font) {
-		return openRows.stream().mapToInt(row -> font.width(row.name())).max().orElse(0) + 8;
+		return ROWS.stream().mapToInt(row -> font.width(row.name())).max().orElse(0) + 8;
 	}
 
 	private static Button<Void> panel(Font font, ChatScreen screen) {
-		int actionsWidth = openRows.stream()
+		int actionsWidth = ROWS.stream()
 				.mapToInt(row -> row.actions().stream().mapToInt(action -> buttonWidth(font, action.label()) + GAP).sum() - GAP)
 				.max().orElse(0);
 		int width = PADDING * 2 + labelWidth(font) + actionsWidth;
-		int height = PADDING * 2 + openRows.size() * (HEIGHT + GAP) - GAP;
+		int height = PADDING * 2 + (ROWS.size() + 1) * (HEIGHT + GAP) - GAP;
 		return new Button<>(screen.width - 2 - width, barY(screen) - 2 - height, width, height, null);
 	}
 
 	private static List<Button<Action>> actions(Font font, Button<Void> panel) {
 		List<Button<Action>> buttons = new ArrayList<>();
-		for (int i = 0; i < openRows.size(); i++) {
+		for (int i = 0; i < ROWS.size(); i++) {
 			int x = panel.x() + PADDING + labelWidth(font);
-			int y = panel.y() + PADDING + i * (HEIGHT + GAP);
-			for (Action action : openRows.get(i).actions()) {
+			int y = panel.y() + PADDING + (i + 1) * (HEIGHT + GAP);
+			for (Action action : ROWS.get(i).actions()) {
 				int width = buttonWidth(font, action.label());
 				buttons.add(new Button<>(x, y, width, HEIGHT, action));
 				x += width + GAP;
 			}
 		}
 		return buttons;
+	}
+
+	private static Button<Void> backButton(Font font, Button<Void> panel) {
+		return new Button<>(panel.x() + PADDING, panel.y() + PADDING, buttonWidth(font, Theme.BACK), HEIGHT, null);
+	}
+
+	public static int menuRight(ChatScreen screen) {
+		Font font = Minecraft.getInstance().font;
+		Button<Void> menu = menuButton(font, screen);
+		return menu.x() + menu.width();
 	}
 
 	//? if >=26.1 {
@@ -199,57 +178,39 @@ public final class ChannelBar {
 			}
 		}
 
-		Button<Void> toggle = toggle(font, screen);
-		boolean toggleHovered = toggle.contains(mouseX, mouseY);
-		graphics.fill(toggle.x(), toggle.y(), toggle.x() + toggle.width(), toggle.y() + toggle.height(), openRows == ROWS || toggleHovered ? 0xC0505050 : 0x80000000);
-		EmojiPicker.text(graphics, font, TOGGLE_LABEL, toggle.x() + 4, toggle.y() + 3, SYSTEM);
-
-		Button<Void> commands = commandsButton(font, screen);
-		boolean commandsHovered = commands.contains(mouseX, mouseY);
-		graphics.fill(commands.x(), commands.y(), commands.x() + commands.width(), commands.y() + commands.height(), commandsHovered ? 0xC0505050 : 0x80000000);
-		EmojiPicker.text(graphics, font, COMMANDS_LABEL, commands.x() + 4, commands.y() + 3, 0xFFCFFFC0);
-		if (commandsHovered) {
-			tooltip = Component.literal("開啟自訂指令選單");
-		}
-
-		Button<Void> announcements = announcementsButton(font, screen);
-		boolean announcementsHovered = announcements.contains(mouseX, mouseY);
+		Button<Void> menu = menuButton(font, screen);
+		boolean menuHovered = menu.contains(mouseX, mouseY);
+		graphics.fill(menu.x(), menu.y(), menu.x() + menu.width(), menu.y() + menu.height(), ChatMenu.isOpen() || menuHovered ? 0xC0505050 : 0x80000000);
+		EmojiPicker.text(graphics, font, MENU_LABEL, menu.x() + 4, menu.y() + 3, 0xFFFFFFFF);
 		int unread = AnnouncementStore.totalUnread();
-		graphics.fill(announcements.x(), announcements.y(), announcements.x() + announcements.width(), announcements.y() + announcements.height(), announcementsHovered ? 0xC0505050 : 0x80000000);
-		EmojiPicker.text(graphics, font, announcementsLabel(), announcements.x() + 4, announcements.y() + 3, unread > 0 ? 0xFFF6E0A4 : 0xFFFFFFFF);
-		if (announcementsHovered) {
-			tooltip = Component.literal(unread > 0 ? "有 " + unread + " 則新公告" : "查看伺服器公告");
+		if (unread > 0) {
+			String badge = unread > 9 ? "9+" : String.valueOf(unread);
+			int bw = Math.max(9, font.width(badge) + 4);
+			int bx = menu.x() + menu.width() - bw - 2;
+			graphics.fill(bx, menu.y() + 2, bx + bw, menu.y() + HEIGHT - 2, 0xFFE04848);
+			EmojiPicker.text(graphics, font, badge, bx + (bw - font.width(badge)) / 2, menu.y() + 3, 0xFFFFFFFF);
+		}
+		if (menuHovered) {
+			tooltip = Component.literal(unread > 0 ? "功能選單（" + unread + " 則新公告）" : "功能選單：公告、官網、常用訊息、互動與更多");
 		}
 
-		Button<Void> guide = guideButton(font, screen);
-		boolean guideHovered = guide.contains(mouseX, mouseY);
-		graphics.fill(guide.x(), guide.y(), guide.x() + guide.width(), guide.y() + guide.height(), guideHovered ? 0xC0505050 : 0x80000000);
-		EmojiPicker.text(graphics, font, GUIDE_LABEL, guide.x() + 4, guide.y() + 3, 0xFF7AD3FF);
-		if (guideHovered) {
-			tooltip = Component.literal("搜尋並閱讀輝煌官網文章");
-		}
-
-		Button<Void> interact = interactButton(font, screen);
-		boolean interactHovered = interact.contains(mouseX, mouseY);
-		graphics.fill(interact.x(), interact.y(), interact.x() + interact.width(), interact.y() + interact.height(), openRows == INTERACT_ROWS || interactHovered ? 0xC0505050 : 0x80000000);
-		EmojiPicker.text(graphics, font, INTERACT_LABEL, interact.x() + 4, interact.y() + 3, 0xFFCFFFC0);
-		if (interactHovered) {
-			tooltip = Component.literal("展示物品、坐下躺下等快捷動作");
-		}
-
-		if (openRows != null) {
+		if (settingsOpen) {
 			Button<Void> panel = panel(font, screen);
 			graphics.fill(panel.x(), panel.y(), panel.x() + panel.width(), panel.y() + panel.height(), 0xD0000000);
-			for (int i = 0; i < openRows.size(); i++) {
-				Row row = openRows.get(i);
-				EmojiPicker.text(graphics, font, row.name(), panel.x() + PADDING + 2, panel.y() + PADDING + i * (HEIGHT + GAP) + 3, row.color());
+			for (int i = 0; i < ROWS.size(); i++) {
+				Row row = ROWS.get(i);
+				EmojiPicker.text(graphics, font, row.name(), panel.x() + PADDING + 2, panel.y() + PADDING + (i + 1) * (HEIGHT + GAP) + 3, row.color());
 			}
+			Button<Void> back = backButton(font, panel);
+			graphics.fill(back.x(), back.y(), back.x() + back.width(), back.y() + back.height(), back.contains(mouseX, mouseY) ? 0x60FFFFFF : 0x30FFFFFF);
+			EmojiPicker.text(graphics, font, Theme.BACK, back.x() + 4, back.y() + 3, 0xFFFFFFFF);
+			EmojiPicker.text(graphics, font, "頻道設定", back.x() + back.width() + 6, back.y() + 3, SYSTEM);
 			for (Button<Action> button : actions(font, panel)) {
 				boolean hovered = button.contains(mouseX, mouseY);
 				graphics.fill(button.x(), button.y(), button.x() + button.width(), button.y() + button.height(), hovered ? 0x60FFFFFF : 0x30FFFFFF);
 				EmojiPicker.text(graphics, font, button.value().label(), button.x() + 4, button.y() + 3, 0xFFFFFFFF);
 				if (hovered) {
-					tooltip = Component.literal(button.value().insert() ? "在聊天欄插入 " + button.value().command() : "/" + button.value().command());
+					tooltip = Component.literal("/" + button.value().command());
 				}
 			}
 		}
@@ -271,48 +232,29 @@ public final class ChannelBar {
 				return true;
 			}
 		}
-		if (announcementsButton(font, screen).contains(mouseX, mouseY)) {
+		if (menuButton(font, screen).contains(mouseX, mouseY)) {
+			boolean wasOpen = ChatMenu.isOpen();
 			close();
 			EmojiPicker.close();
-			CommandMenuScreen.setScreen(new AnnouncementScreen(screen));
+			if (!wasOpen) {
+				ChatMenu.open(screen);
+			}
 			return true;
 		}
-		if (guideButton(font, screen).contains(mouseX, mouseY)) {
-			close();
-			EmojiPicker.close();
-			CommandMenuScreen.setScreen(new GuideScreen(screen));
-			return true;
-		}
-		if (interactButton(font, screen).contains(mouseX, mouseY)) {
-			openRows = openRows == INTERACT_ROWS ? null : INTERACT_ROWS;
-			EmojiPicker.close();
-			return true;
-		}
-		if (commandsButton(font, screen).contains(mouseX, mouseY)) {
-			close();
-			EmojiPicker.close();
-			CommandMenuScreen.setScreen(new CommandMenuScreen(screen));
-			return true;
-		}
-		if (toggle(font, screen).contains(mouseX, mouseY)) {
-			openRows = openRows == ROWS ? null : ROWS;
-			EmojiPicker.close();
-			return true;
-		}
-		if (openRows == null) {
+		if (!settingsOpen) {
 			return false;
 		}
 		Button<Void> panel = panel(font, screen);
 		if (!panel.contains(mouseX, mouseY)) {
+			settingsOpen = false;
 			return false;
 		}
+		if (backButton(font, panel).contains(mouseX, mouseY)) {
+			ChatMenu.backToMenu(screen);
+			return true;
+		}
 		for (Button<Action> action : actions(font, panel)) {
-			if (!action.contains(mouseX, mouseY)) {
-				continue;
-			}
-			if (action.value().insert()) {
-				PrivateWindow.insert(screen, action.value().command());
-			} else if (minecraft.player != null) {
+			if (action.contains(mouseX, mouseY) && minecraft.player != null) {
 				minecraft.player.connection.sendCommand(action.value().command());
 			}
 		}

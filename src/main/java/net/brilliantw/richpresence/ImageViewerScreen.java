@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import javax.imageio.ImageIO;
 //? if >=26.1 {
@@ -75,7 +76,7 @@ public final class ImageViewerScreen extends Screen {
 	}
 
 	private static boolean isDiscordMedia(URI uri) {
-		String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+		String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
 		return "https".equalsIgnoreCase(uri.getScheme()) && uri.getPort() == -1
 				&& (host.equals("cdn.discordapp.com") || host.equals("media.discordapp.net") || host.matches("images-ext-\\d+\\.discordapp\\.net"));
 	}
