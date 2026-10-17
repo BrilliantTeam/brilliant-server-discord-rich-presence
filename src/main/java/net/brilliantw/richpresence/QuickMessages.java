@@ -141,7 +141,7 @@ public final class QuickMessages {
 	}
 
 	private static int backWidth() {
-		return Minecraft.getInstance().font.width(Theme.BACK) + 8;
+		return Gfx.iconLabelWidth(Minecraft.getInstance().font, Icons.BACK, Theme.BACK) + 10;
 	}
 
 	private static Rect backButton(Rect panel) {
@@ -171,13 +171,13 @@ public final class QuickMessages {
 
 		Rect back = backButton(panel);
 		gfx.fill(back.x(), back.y(), back.x() + back.w(), back.y() + back.h(), back.contains(mouseX, mouseY) ? 0x60FFFFFF : 0x30FFFFFF);
-		gfx.text(font, Theme.BACK, back.x() + 4, back.y() + 3, 0xFFFFFFFF);
+		gfx.iconLabel(font, Icons.BACK, Theme.BACK, back.x(), back.y(), back.w(), back.h(), 0xFFFFFFFF);
 
 		Rect save = saveButton(panel);
 		String reason = saveReason(input);
 		boolean saveHovered = save.contains(mouseX, mouseY);
 		gfx.fill(save.x(), save.y(), save.x() + save.w(), save.y() + save.h(), reason == null && saveHovered ? 0x6000C060 : 0x30FFFFFF);
-		gfx.text(font, "＋ 儲存目前輸入", save.x() + 4, save.y() + 3, reason == null ? 0xFFCFFFC0 : Theme.TEXT_DIM);
+		gfx.iconLabel(font, Icons.PLUS, "儲存目前輸入", save.x(), save.y(), save.w(), save.h(), reason == null ? 0xFFCFFFC0 : Theme.TEXT_DIM);
 		if (saveHovered) {
 			tooltip.add(Component.literal(reason == null ? "儲存：" + input.strip() : reason));
 		}
@@ -185,7 +185,7 @@ public final class QuickMessages {
 		List<String> list = messages();
 		if (list.isEmpty()) {
 			Rect hint = row(panel, 0);
-			gfx.text(font, "在聊天欄輸入文字，再按上方按鈕儲存", hint.x() + 2, hint.y() + 3, Theme.TEXT_DIM);
+			gfx.label(font, "在聊天欄輸入文字，再按上方按鈕儲存", hint.x() + 2, hint.y(), hint.h(), Theme.TEXT_DIM);
 		}
 		int rows = visibleRows(screen);
 		scroll = Math.clamp(scroll, 0, Math.max(0, list.size() - rows));
@@ -196,10 +196,10 @@ public final class QuickMessages {
 			boolean hovered = row.contains(mouseX, mouseY);
 			gfx.fill(row.x(), row.y(), row.x() + row.w(), row.y() + row.h(), hovered ? 0x60FFFFFF : 0x30FFFFFF);
 			String label = font.width(text) > row.w() - 8 ? font.plainSubstrByWidth(text, row.w() - 8 - font.width("…")) + "…" : text;
-			gfx.text(font, label, row.x() + 4, row.y() + 3, text.startsWith("/") ? 0xFFCFFFC0 : 0xFFFFFFFF);
+			gfx.label(font, label, row.x() + 4, row.y(), row.h(), text.startsWith("/") ? 0xFFCFFFC0 : 0xFFFFFFFF);
 			boolean deleteHovered = delete.contains(mouseX, mouseY);
 			gfx.fill(delete.x(), delete.y(), delete.x() + delete.w(), delete.y() + delete.h(), deleteHovered ? 0x80FF5050 : 0x30FFFFFF);
-			gfx.text(font, "✕", delete.x() + (ROW - font.width("✕")) / 2, delete.y() + 3, deleteHovered ? 0xFFFFFFFF : Theme.TEXT_DIM);
+			Icons.CLOSE.drawCentered(gfx, delete.x(), delete.y(), delete.w(), delete.h(), deleteHovered ? 0xFFFFFFFF : Theme.TEXT_DIM);
 			if (hovered) {
 				tooltip.add(Component.literal(text));
 				tooltip.add(Component.literal("點擊送出 · Shift+點擊插入到輸入框").withStyle(ChatFormatting.GRAY));

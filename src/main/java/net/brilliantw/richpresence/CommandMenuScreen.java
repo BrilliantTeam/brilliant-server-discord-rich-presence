@@ -47,14 +47,14 @@ public final class CommandMenuScreen extends Screen {
 	}
 
 	private enum GroupIcon {
-		DELETE("✕", "刪除分組"),
-		RENAME("✎", "重新命名分組"),
-		ADD_CHILD("＋", "新增子分組");
+		DELETE(Icons.CLOSE, "刪除分組"),
+		RENAME(Icons.EDIT, "重新命名分組"),
+		ADD_CHILD(Icons.PLUS, "新增子分組");
 
-		final String symbol;
+		final Icons symbol;
 		final String description;
 
-		GroupIcon(String symbol, String description) {
+		GroupIcon(Icons symbol, String description) {
 			this.symbol = symbol;
 			this.description = description;
 		}
@@ -70,7 +70,7 @@ public final class CommandMenuScreen extends Screen {
 	private static final int CARD_GAP = 3;
 	private static final int CHIP_HEIGHT = 14;
 	private static final String ADD_COMMAND = "＋ 新增指令";
-	private static final String ADD_GROUP = "＋ 新增分組";
+	private static final String ADD_GROUP = "新增分組";
 	private static final String UNDO = "復原";
 
 	private final Screen parent;
@@ -241,7 +241,7 @@ public final class CommandMenuScreen extends Screen {
 		int titleWidth = Theme.titleX(font, p.x()) - p.x() + font.width(title) + 10;
 		searchBox = addRenderableWidget(new EditBox(font, p.x() + titleWidth, p.y() + 4, p.w() - titleWidth - (buttonWidth + 4) * 2 - 8, 18, Component.literal("搜尋")));
 		searchBox.setMaxLength(64);
-		searchBox.setHint(Component.literal("搜尋指令、備註或分組…  按 Enter 執行第一個").withStyle(ChatFormatting.DARK_GRAY));
+		Theme.hint(searchBox, "搜尋指令、備註或分組…  按 Enter 執行第一個");
 		searchBox.setValue(search);
 		searchBox.setResponder(value -> {
 			search = value;
@@ -275,6 +275,7 @@ public final class CommandMenuScreen extends Screen {
 	private void draw(Gfx gfx, int mouseX, int mouseY) {
 		Rect p = panel();
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + p.h(), Theme.PANEL);
+		Theme.watermark(gfx, p.x(), p.y(), p.w(), p.h());
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + HEADER, Theme.HEADER);
 		gfx.fill(p.x(), p.y() + HEADER - 1, p.x() + p.w(), p.y() + HEADER, Theme.ACCENT_DIM);
 		gfx.text(font, title.getString(), Theme.titleX(font, p.x()), p.y() + 9, Theme.ACCENT);
@@ -316,7 +317,7 @@ public final class CommandMenuScreen extends Screen {
 
 			if (group != null && !group.children.isEmpty()) {
 				Rect arrow = arrow(row, depth);
-				gfx.text(font, group.collapsed ? "▸" : "▾", arrow.x() + 1, arrow.y() + 3, arrow.contains(mouseX, mouseY) ? Theme.TEXT : Theme.TEXT_DIM);
+				(group.collapsed ? Icons.CARET_RIGHT : Icons.CARET_DOWN).drawCentered(gfx, arrow.x(), arrow.y(), arrow.w(), arrow.h(), arrow.contains(mouseX, mouseY) ? Theme.TEXT : Theme.TEXT_DIM);
 				if (arrow.contains(mouseX, mouseY)) {
 					tooltip.add(Component.literal(group.collapsed ? "展開子分組" : "收合子分組"));
 				}
@@ -348,19 +349,20 @@ public final class CommandMenuScreen extends Screen {
 		if (add.contains(mouseX, mouseY)) {
 			gfx.fill(add.x(), add.y(), add.x() + add.w(), add.y() + add.h(), Theme.CARD);
 		}
-		gfx.text(font, ADD_GROUP, add.x() + 7, add.y() + 5, Theme.ACCENT);
+		Icons.PLUS.draw(gfx, add.x() + 7, add.y() + (add.h() - Icons.PLUS.height()) / 2, Theme.ACCENT);
+		gfx.label(font, ADD_GROUP, add.x() + 7 + Icons.PLUS.width() + 4, add.y(), add.h(), Theme.ACCENT);
 	}
 
-	private void drawIcon(Gfx gfx, Rect icon, String symbol, int color, int mouseX, int mouseY) {
+	private void drawIcon(Gfx gfx, Rect icon, Icons symbol, int color, int mouseX, int mouseY) {
 		if (icon.contains(mouseX, mouseY)) {
 			gfx.fill(icon.x(), icon.y(), icon.x() + icon.w(), icon.y() + icon.h(), Theme.CHIP_HOVER);
 		}
-		gfx.text(font, symbol, icon.x() + (icon.w() - font.width(symbol)) / 2 + 1, icon.y() + 3, color);
+		symbol.drawCentered(gfx, icon.x(), icon.y(), icon.w(), icon.h(), color);
 	}
 
 	private void drawChip(Gfx gfx, Rect chip, String label, int color, int mouseX, int mouseY) {
 		gfx.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + chip.h(), chip.contains(mouseX, mouseY) ? Theme.CHIP_HOVER : Theme.CHIP);
-		gfx.text(font, label, chip.x() + 5, chip.y() + 3, color);
+		gfx.label(font, label, chip.x() + 5, chip.y(), chip.h(), color);
 	}
 
 	private void drawList(Gfx gfx, int mouseX, int mouseY, List<Component> tooltip) {

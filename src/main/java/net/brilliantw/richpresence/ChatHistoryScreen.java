@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.EditBox;
 //? if >=26.1 {
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -73,7 +72,7 @@ public final class ChatHistoryScreen extends Screen {
 		int x = Theme.titleX(font, p.x()) + font.width(title) + 10;
 		search = new EditBox(font, x, p.y() + 5, Math.max(80, Math.min(240, p.x() + p.w() - 10 - x)), 16, Component.literal("搜尋"));
 		search.setMaxLength(100);
-		search.setHint(Component.literal("搜尋訊息…").withStyle(ChatFormatting.DARK_GRAY));
+		Theme.hint(search, "搜尋訊息…");
 		search.setValue(query);
 		search.setResponder(value -> {
 			query = value;
@@ -143,6 +142,7 @@ public final class ChatHistoryScreen extends Screen {
 		Rect p = panel();
 		Rect l = list();
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + p.h(), Theme.PANEL);
+		Theme.watermark(gfx, p.x(), p.y(), p.w(), p.h());
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + HEADER, Theme.HEADER);
 		gfx.fill(p.x(), p.y() + HEADER - 1, p.x() + p.w(), p.y() + HEADER, Theme.ACCENT_DIM);
 		gfx.text(font, title.getString(), Theme.titleX(font, p.x()), p.y() + 9, Theme.ACCENT);

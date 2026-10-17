@@ -101,7 +101,7 @@ public final class ImportScreen extends Screen {
 
 	private Component modeLabel(boolean replaceMode) {
 		String label = replaceMode ? "覆蓋" : "合併";
-		return replace == replaceMode ? Component.literal("● " + label).withStyle(ChatFormatting.AQUA) : Component.literal("○ " + label);
+		return replace == replaceMode ? Component.literal("【" + label + "】").withStyle(ChatFormatting.AQUA) : Component.literal(label).withStyle(ChatFormatting.GRAY);
 	}
 
 	@Override
@@ -112,7 +112,7 @@ public final class ImportScreen extends Screen {
 		int fileWidth = 64;
 		input = addRenderableWidget(new EditBox(font, x, top() + HEADER + 16, w - pasteWidth - fileWidth - 8, 18, Component.literal("指令集代碼")));
 		input.setMaxLength(Integer.MAX_VALUE);
-		input.setHint(Component.literal("在這裡按 Ctrl+V 貼上 BSM-CMD:… 代碼").withStyle(ChatFormatting.DARK_GRAY));
+		Theme.hint(input, "在這裡按 Ctrl+V 貼上 BSM-CMD:… 代碼");
 		input.setValue(code);
 		input.setResponder(value -> {
 			code = value;

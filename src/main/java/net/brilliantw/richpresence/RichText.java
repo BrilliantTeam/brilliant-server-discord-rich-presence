@@ -463,7 +463,7 @@ public final class RichText {
 			int bx = x + (w - bw) / 2;
 			int by = y + (h - bh) / 2;
 			gfx.fill(bx, by, bx + bw, by + bh, hovered ? 0xE0000000 : 0xB0000000);
-			gfx.text(font, "▶", bx + (bw - font.width("▶")) / 2 + 1, by + 4, 0xFFFFFFFF);
+			Icons.PLAY.drawCentered(gfx, bx + 1, by, bw, bh, 0xFFFFFFFF);
 		}
 		if (!hidden && line.l != null && !line.l.isEmpty() && entry.state == RemoteImages.State.READY) {
 			String label = font.plainSubstrByWidth(line.l, w - 8);

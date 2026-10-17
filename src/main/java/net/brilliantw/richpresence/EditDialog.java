@@ -64,7 +64,7 @@ public final class EditDialog extends Screen {
 			Field field = fields.get(i);
 			EditBox box = addRenderableWidget(new EditBox(font, x, y + 11, WIDTH - 20, 18, Component.literal(field.label())));
 			box.setMaxLength(field.maxLength());
-			box.setHint(Component.literal(field.hint()).withStyle(ChatFormatting.DARK_GRAY));
+			Theme.hint(box, field.hint());
 			box.setValue(values[i]);
 			box.setResponder(value -> values[index] = value);
 			boxes.add(box);
@@ -87,7 +87,7 @@ public final class EditDialog extends Screen {
 	}
 
 	private Component groupLabel() {
-		return Component.literal("分組：" + groups.get(groupIndex) + (groups.size() > 1 ? "  ⇄" : ""));
+		return Component.literal("分組：" + groups.get(groupIndex) + (groups.size() > 1 ? "（點擊切換）" : ""));
 	}
 
 	private void save() {

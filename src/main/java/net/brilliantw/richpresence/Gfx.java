@@ -7,6 +7,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 //?} else {
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
@@ -28,6 +29,31 @@ public final class Gfx {
 
 	public void fill(int x1, int y1, int x2, int y2, int color) {
 		graphics.fill(x1, y1, x2, y2, color);
+	}
+
+	public static int textTop(Font font, int top, int height) {
+		return top + (height - font.lineHeight + 2) / 2;
+	}
+
+	public void label(Font font, String text, int x, int top, int height, int color) {
+		text(font, text, x, textTop(font, top, height), color);
+	}
+
+	public void centered(Font font, String text, int left, int top, int width, int height, int color) {
+		text(font, text, left + (width - font.width(text)) / 2, textTop(font, top, height), color);
+	}
+
+	public void iconLabel(Font font, Icons icon, String text, int left, int top, int width, int height, int color) {
+		int total = icon.width() + (text.isEmpty() ? 0 : 3 + font.width(text));
+		int x = left + (width - total) / 2;
+		icon.draw(this, x, top + (height - icon.height()) / 2, color);
+		if (!text.isEmpty()) {
+			text(font, text, x + icon.width() + 3, textTop(font, top, height), color);
+		}
+	}
+
+	public static int iconLabelWidth(Font font, Icons icon, String text) {
+		return icon.width() + (text.isEmpty() ? 0 : 3 + font.width(text));
 	}
 
 	public void text(Font font, String text, int x, int y, int color) {
@@ -60,6 +86,14 @@ public final class Gfx {
 
 	public void image(Identifier texture, int x, int y, int width, int height, float u0, float u1, float v0, float v1) {
 		graphics.blit(texture, x, y, x + width, y + height, u0, u1, v0, v1);
+	}
+
+	public void sprite(Identifier atlas, int x, int y, int u, int v, int size, int atlasWidth, int atlasHeight, int color) {
+		graphics.blit(RenderPipelines.GUI_TEXTURED, atlas, x, y, u, v, size, size, atlasWidth, atlasHeight, color);
+	}
+
+	public void texture(Identifier texture, int x, int y, int width, int height, int textureWidth, int textureHeight, int color) {
+		graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, width, height, textureWidth, textureHeight, textureWidth, textureHeight, color);
 	}
 
 	public void tooltip(Font font, List<Component> lines, int x, int y) {

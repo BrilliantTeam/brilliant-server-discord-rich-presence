@@ -84,7 +84,7 @@ public final class GuideScreen extends Screen {
 		int w = Math.max(80, Math.min(220, browserChip().x() - 6 - x));
 		search = new EditBox(font, x, p.y() + 5, w, 16, Component.literal("搜尋"));
 		search.setMaxLength(60);
-		search.setHint(Component.literal("搜尋官網文章…").withStyle(ChatFormatting.DARK_GRAY));
+		Theme.hint(search, "搜尋官網文章…");
 		search.setValue(typed);
 		search.setResponder(value -> {
 			typed = value;
@@ -268,7 +268,7 @@ public final class GuideScreen extends Screen {
 
 	private void drawChip(Gfx gfx, Rect chip, String label, int mouseX, int mouseY) {
 		gfx.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + chip.h(), chip.contains(mouseX, mouseY) ? Theme.CHIP_HOVER : Theme.CHIP);
-		gfx.text(font, label, chip.x() + 6, chip.y() + 3, Theme.TEXT);
+		gfx.label(font, label, chip.x() + 6, chip.y(), chip.h(), Theme.TEXT);
 	}
 
 	private void draw(Gfx gfx, int mouseX, int mouseY) {
@@ -278,6 +278,7 @@ public final class GuideScreen extends Screen {
 		Rect p = panel();
 		Rect l = list();
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + p.h(), Theme.PANEL);
+		Theme.watermark(gfx, p.x(), p.y(), p.w(), p.h());
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + HEADER, Theme.HEADER);
 		gfx.fill(p.x(), p.y() + HEADER - 1, p.x() + p.w(), p.y() + HEADER, Theme.ACCENT_DIM);
 		gfx.text(font, title.getString(), Theme.titleX(font, p.x()), p.y() + 9, Theme.ACCENT);

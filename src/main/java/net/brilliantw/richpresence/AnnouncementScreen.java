@@ -189,7 +189,7 @@ public final class AnnouncementScreen extends Screen {
 		if (active) {
 			gfx.fill(chip.x(), chip.y() + chip.h() - 1, chip.x() + chip.w(), chip.y() + chip.h(), Theme.ACCENT);
 		}
-		gfx.text(font, label, chip.x() + 6, chip.y() + 3, color);
+		gfx.label(font, label, chip.x() + 6, chip.y(), chip.h(), color);
 	}
 
 	private void draw(Gfx gfx, int mouseX, int mouseY) {
@@ -199,6 +199,7 @@ public final class AnnouncementScreen extends Screen {
 		layout();
 		Rect p = panel();
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + p.h(), Theme.PANEL);
+		Theme.watermark(gfx, p.x(), p.y(), p.w(), p.h());
 		gfx.fill(p.x(), p.y(), p.x() + p.w(), p.y() + HEADER, Theme.HEADER);
 		gfx.fill(p.x(), p.y() + HEADER - 1, p.x() + p.w(), p.y() + HEADER, Theme.ACCENT_DIM);
 		gfx.text(font, title.getString(), Theme.titleX(font, p.x()), p.y() + 9, Theme.ACCENT);

@@ -55,7 +55,6 @@ public final class ChatMenu {
 		search = new EditBox(Minecraft.getInstance().font, 0, 0, 100, 10, Component.literal("搜尋"));
 		search.setBordered(false);
 		search.setMaxLength(50);
-		search.setHint(Component.literal("搜尋功能、動作、常用訊息、指令…").withStyle(ChatFormatting.DARK_GRAY));
 		search.setResponder(value -> {
 			selected = 0;
 			scroll = 0;
@@ -255,11 +254,12 @@ public final class ChatMenu {
 		gfx.fill(panel.x(), panel.y(), panel.x() + panel.w(), panel.y() + 1, Theme.ACCENT_DIM);
 		int sy = panel.y() + PADDING;
 		gfx.fill(panel.x() + PADDING, sy, panel.x() + panel.w() - PADDING, sy + SEARCH, 0xFF1E252C);
-		gfx.text(font, "⌕", panel.x() + PADDING + 3, sy + 3, Theme.TEXT_DIM);
+		Icons.SEARCH.draw(gfx, panel.x() + PADDING + 4, sy + (SEARCH - Icons.SEARCH.height()) / 2, Theme.TEXT_DIM);
 		if (search != null) {
 			search.setX(panel.x() + PADDING + 14);
 			search.setY(sy + 3);
 			search.setWidth(panel.w() - PADDING * 2 - 18);
+			Theme.hint(search, "搜尋功能、動作、常用訊息、指令…");
 		}
 	}
 
@@ -277,11 +277,11 @@ public final class ChatMenu {
 				Rect r = placed.rect();
 				if (!item.section().equals(section)) {
 					section = item.section();
-					gfx.text(font, section, panel.x() + PADDING, r.y() + 3, Theme.TEXT_DIM);
+					gfx.label(font, section, panel.x() + PADDING, r.y(), r.h(), Theme.TEXT_DIM);
 				}
 				boolean hovered = r.contains(mouseX, mouseY);
 				gfx.fill(r.x(), r.y(), r.x() + r.w(), r.y() + r.h(), hovered ? 0x60FFFFFF : 0x28FFFFFF);
-				gfx.text(font, item.label(), r.x() + 5, r.y() + 3, item.color());
+				gfx.centered(font, item.label(), r.x(), r.y(), r.w(), r.h(), item.color());
 				if (hovered) {
 					tooltip.add(Component.literal(item.detail()));
 				}
@@ -290,7 +290,7 @@ public final class ChatMenu {
 			List<Item> results = results();
 			selected = Math.clamp(selected, 0, Math.max(0, results.size() - 1));
 			if (results.isEmpty()) {
-				gfx.text(font, "找不到符合的功能", panel.x() + PADDING + 2, contentTop(panel) + 3, Theme.TEXT_DIM);
+				gfx.label(font, "找不到符合的功能", panel.x() + PADDING + 2, contentTop(panel), ROW, Theme.TEXT_DIM);
 			}
 			List<Placed> rows = resultLayout(panel, results);
 			for (int i = 0; i < rows.size(); i++) {
@@ -303,19 +303,19 @@ public final class ChatMenu {
 					gfx.fill(r.x(), r.y(), r.x() + 2, r.y() + r.h(), Theme.ACCENT);
 				}
 				String tag = item.section();
-				gfx.text(font, tag, r.x() + 5, r.y() + 3, Theme.TEXT_DIM);
+				gfx.label(font, tag, r.x() + 5, r.y(), r.h(), Theme.TEXT_DIM);
 				int lx = r.x() + 5 + font.width("頻道") + 6;
 				int detailWidth = Math.min(font.width(item.detail()), r.w() / 3);
 				String label = font.plainSubstrByWidth(item.label(), r.x() + r.w() - lx - detailWidth - 10);
-				gfx.text(font, label, lx, r.y() + 3, item.color());
+				gfx.label(font, label, lx, r.y(), r.h(), item.color());
 				String detail = font.plainSubstrByWidth(item.detail(), detailWidth);
-				gfx.text(font, detail, r.x() + r.w() - 4 - font.width(detail), r.y() + 3, Theme.TEXT_DIM);
+				gfx.label(font, detail, r.x() + r.w() - 4 - font.width(detail), r.y(), r.h(), Theme.TEXT_DIM);
 				if (hovered && (font.width(item.label()) > font.width(label) || font.width(item.detail()) > detailWidth)) {
 					tooltip.add(Component.literal(item.label()));
 					tooltip.add(Component.literal(item.detail()).withStyle(ChatFormatting.GRAY));
 				}
 			}
-			String hint = "↑↓ 選擇 · Enter 執行 · Esc 關閉" + (results.size() > MAX_RESULTS ? " · 共 " + results.size() + " 項" : "");
+			String hint = "方向鍵選擇 · Enter 執行 · Esc 關閉" + (results.size() > MAX_RESULTS ? " · 共 " + results.size() + " 項" : "");
 			gfx.text(font, hint, panel.x() + PADDING + 2, panel.y() + panel.h() - PADDING - 9, Theme.TEXT_DIM);
 		}
 		if (!tooltip.isEmpty()) {

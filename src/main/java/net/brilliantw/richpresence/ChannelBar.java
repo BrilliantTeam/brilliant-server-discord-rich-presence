@@ -52,7 +52,7 @@ public final class ChannelBar {
 			new Row("顯示", SYSTEM, List.of(new Action("遊戲廣播", "bla"), new Action("系統訊息", "tsm")))
 	);
 
-	private static final String MENU_LABEL = "☰ 選單";
+	private static final String MENU_LABEL = "選單";
 	private static final int HEIGHT = 14;
 	private static final int GAP = 2;
 	private static final int PADDING = 3;
@@ -110,7 +110,7 @@ public final class ChannelBar {
 	}
 
 	private static Button<Void> menuButton(Font font, ChatScreen screen) {
-		int width = buttonWidth(font, MENU_LABEL) + (AnnouncementStore.totalUnread() > 0 ? 10 : 0);
+		int width = Gfx.iconLabelWidth(font, Icons.MENU, MENU_LABEL) + 10 + (AnnouncementStore.totalUnread() > 0 ? 12 : 0);
 		return new Button<>(screen.width - 2 - EMOJI_BUTTON - GAP - width, barY(screen), width, HEIGHT, null);
 	}
 
@@ -142,7 +142,7 @@ public final class ChannelBar {
 	}
 
 	private static Button<Void> backButton(Font font, Button<Void> panel) {
-		return new Button<>(panel.x() + PADDING, panel.y() + PADDING, buttonWidth(font, Theme.BACK), HEIGHT, null);
+		return new Button<>(panel.x() + PADDING, panel.y() + PADDING, Gfx.iconLabelWidth(font, Icons.BACK, Theme.BACK) + 10, HEIGHT, null);
 	}
 
 	public static int menuRight(ChatScreen screen) {
@@ -160,17 +160,18 @@ public final class ChannelBar {
 			return;
 		}
 		Font font = Minecraft.getInstance().font;
+		Gfx gfx = new Gfx(graphics);
 		Component tooltip = null;
 
 		for (Button<Integer> chip : chips(font, screen)) {
 			Channel channel = CHANNELS.get(chip.value());
 			boolean hovered = chip.contains(mouseX, mouseY);
 			int background = chip.value() == selected ? 0xD0505050 : hovered ? 0xA0303030 : 0x80000000;
-			graphics.fill(chip.x(), chip.y(), chip.x() + chip.width(), chip.y() + chip.height(), background);
+			gfx.fill(chip.x(), chip.y(), chip.x() + chip.width(), chip.y() + chip.height(), background);
 			if (chip.value() == selected) {
-				graphics.fill(chip.x(), chip.y() + chip.height() - 1, chip.x() + chip.width(), chip.y() + chip.height(), channel.color());
+				gfx.fill(chip.x(), chip.y() + chip.height() - 1, chip.x() + chip.width(), chip.y() + chip.height(), channel.color());
 			}
-			EmojiPicker.text(graphics, font, channel.name(), chip.x() + 4, chip.y() + 3, channel.color());
+			gfx.centered(font, channel.name(), chip.x(), chip.y(), chip.width(), chip.height(), channel.color());
 			if (hovered) {
 				tooltip = Component.literal(channel.prefix().isEmpty()
 						? "照目前所在頻道發言"
@@ -180,15 +181,15 @@ public final class ChannelBar {
 
 		Button<Void> menu = menuButton(font, screen);
 		boolean menuHovered = menu.contains(mouseX, mouseY);
-		graphics.fill(menu.x(), menu.y(), menu.x() + menu.width(), menu.y() + menu.height(), ChatMenu.isOpen() || menuHovered ? 0xC0505050 : 0x80000000);
-		EmojiPicker.text(graphics, font, MENU_LABEL, menu.x() + 4, menu.y() + 3, 0xFFFFFFFF);
+		gfx.fill(menu.x(), menu.y(), menu.x() + menu.width(), menu.y() + menu.height(), ChatMenu.isOpen() || menuHovered ? 0xC0505050 : 0x80000000);
+		gfx.iconLabel(font, Icons.MENU, MENU_LABEL, menu.x(), menu.y(), menu.width() - (AnnouncementStore.totalUnread() > 0 ? 12 : 0), menu.height(), 0xFFFFFFFF);
 		int unread = AnnouncementStore.totalUnread();
 		if (unread > 0) {
 			String badge = unread > 9 ? "9+" : String.valueOf(unread);
 			int bw = Math.max(9, font.width(badge) + 4);
 			int bx = menu.x() + menu.width() - bw - 2;
-			graphics.fill(bx, menu.y() + 2, bx + bw, menu.y() + HEIGHT - 2, 0xFFE04848);
-			EmojiPicker.text(graphics, font, badge, bx + (bw - font.width(badge)) / 2, menu.y() + 3, 0xFFFFFFFF);
+			gfx.fill(bx, menu.y() + 2, bx + bw, menu.y() + HEIGHT - 2, 0xFFE04848);
+			gfx.centered(font, badge, bx, menu.y() + 2, bw, HEIGHT - 4, 0xFFFFFFFF);
 		}
 		if (menuHovered) {
 			tooltip = Component.literal(unread > 0 ? "功能選單（" + unread + " 則新公告）" : "功能選單：公告、官網、常用訊息、互動與更多");
@@ -196,19 +197,19 @@ public final class ChannelBar {
 
 		if (settingsOpen) {
 			Button<Void> panel = panel(font, screen);
-			graphics.fill(panel.x(), panel.y(), panel.x() + panel.width(), panel.y() + panel.height(), 0xD0000000);
+			gfx.fill(panel.x(), panel.y(), panel.x() + panel.width(), panel.y() + panel.height(), 0xD0000000);
 			for (int i = 0; i < ROWS.size(); i++) {
 				Row row = ROWS.get(i);
-				EmojiPicker.text(graphics, font, row.name(), panel.x() + PADDING + 2, panel.y() + PADDING + (i + 1) * (HEIGHT + GAP) + 3, row.color());
+				gfx.label(font, row.name(), panel.x() + PADDING + 2, panel.y() + PADDING + (i + 1) * (HEIGHT + GAP), HEIGHT, row.color());
 			}
 			Button<Void> back = backButton(font, panel);
-			graphics.fill(back.x(), back.y(), back.x() + back.width(), back.y() + back.height(), back.contains(mouseX, mouseY) ? 0x60FFFFFF : 0x30FFFFFF);
-			EmojiPicker.text(graphics, font, Theme.BACK, back.x() + 4, back.y() + 3, 0xFFFFFFFF);
-			EmojiPicker.text(graphics, font, "頻道設定", back.x() + back.width() + 6, back.y() + 3, SYSTEM);
+			gfx.fill(back.x(), back.y(), back.x() + back.width(), back.y() + back.height(), back.contains(mouseX, mouseY) ? 0x60FFFFFF : 0x30FFFFFF);
+			gfx.iconLabel(font, Icons.BACK, Theme.BACK, back.x(), back.y(), back.width(), back.height(), 0xFFFFFFFF);
+			gfx.label(font, "頻道設定", back.x() + back.width() + 6, back.y(), back.height(), SYSTEM);
 			for (Button<Action> button : actions(font, panel)) {
 				boolean hovered = button.contains(mouseX, mouseY);
-				graphics.fill(button.x(), button.y(), button.x() + button.width(), button.y() + button.height(), hovered ? 0x60FFFFFF : 0x30FFFFFF);
-				EmojiPicker.text(graphics, font, button.value().label(), button.x() + 4, button.y() + 3, 0xFFFFFFFF);
+				gfx.fill(button.x(), button.y(), button.x() + button.width(), button.y() + button.height(), hovered ? 0x60FFFFFF : 0x30FFFFFF);
+				gfx.centered(font, button.value().label(), button.x(), button.y(), button.width(), button.height(), 0xFFFFFFFF);
 				if (hovered) {
 					tooltip = Component.literal("/" + button.value().command());
 				}
@@ -216,7 +217,7 @@ public final class ChannelBar {
 		}
 
 		if (tooltip != null) {
-			graphics.setTooltipForNextFrame(font, tooltip, mouseX, mouseY);
+			gfx.tooltip(font, List.of(tooltip), mouseX, mouseY);
 		}
 	}
 

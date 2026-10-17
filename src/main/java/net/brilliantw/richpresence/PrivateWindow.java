@@ -135,7 +135,7 @@ public final class PrivateWindow {
 
 	private static String pillLabel() {
 		int unread = PrivateMessages.totalUnread();
-		return "✉ 私訊" + (unread > 0 ? " " + unread : "");
+		return "私訊" + (unread > 0 ? " " + unread : "");
 	}
 
 	private static boolean expandedInteractive(boolean interactive) {
@@ -143,7 +143,7 @@ public final class PrivateWindow {
 	}
 
 	private static Rect frame(int screenWidth, int screenHeight, boolean interactive) {
-		int w = PrivateMessages.collapsed() ? font().width(pillLabel()) + 12 : Math.clamp(PrivateMessages.windowWidth(), MIN_WIDTH, Math.max(MIN_WIDTH, screenWidth - 8));
+		int w = PrivateMessages.collapsed() ? Gfx.iconLabelWidth(font(), Icons.MAIL, pillLabel()) + 12 : Math.clamp(PrivateMessages.windowWidth(), MIN_WIDTH, Math.max(MIN_WIDTH, screenWidth - 8));
 		int h = PrivateMessages.collapsed() ? HEADER : HEADER + bodyHeight() + (expandedInteractive(interactive) ? FOOTER : 0);
 		int x = Math.clamp(PrivateMessages.windowX(), 0, Math.max(0, screenWidth - w));
 		int y = Math.clamp(PrivateMessages.windowY(), 0, Math.max(0, screenHeight - h));
@@ -225,7 +225,12 @@ public final class PrivateWindow {
 		if (active) {
 			gfx.fill(rect.x(), rect.y() + rect.h() - 1, rect.x() + rect.w(), rect.y() + rect.h(), Theme.ACCENT);
 		}
-		gfx.text(font(), label, rect.x() + (rect.w() - font().width(label)) / 2, rect.y() + (rect.h() - 8) / 2, color);
+		gfx.centered(font(), label, rect.x(), rect.y(), rect.w(), rect.h(), color);
+	}
+
+	private static void iconChip(Gfx gfx, Rect rect, Icons icon, int color, boolean hovered) {
+		gfx.fill(rect.x(), rect.y(), rect.x() + rect.w(), rect.y() + rect.h(), hovered ? Theme.CHIP_HOVER : Theme.CHIP);
+		icon.drawCentered(gfx, rect.x(), rect.y(), rect.w(), rect.h(), color);
 	}
 
 	public static void renderHud(Gfx gfx) {
@@ -255,7 +260,7 @@ public final class PrivateWindow {
 		if (PrivateMessages.collapsed()) {
 			boolean hovered = frame.contains(mouseX, mouseY);
 			gfx.fill(frame.x(), frame.y(), frame.x() + frame.w(), frame.y() + frame.h(), hovered ? Theme.CHIP_HOVER : BACKGROUND);
-			gfx.text(font, pillLabel(), frame.x() + 6, frame.y() + 3, PrivateMessages.totalUnread() > 0 ? Theme.WARNING : Theme.ACCENT);
+			gfx.iconLabel(font, Icons.MAIL, pillLabel(), frame.x(), frame.y(), frame.w(), frame.h(), PrivateMessages.totalUnread() > 0 ? Theme.WARNING : Theme.ACCENT);
 			return;
 		}
 
@@ -269,13 +274,13 @@ public final class PrivateWindow {
 			Rect r = tab.rect();
 			chip(gfx, r, "", color, interactive && r.contains(mouseX, mouseY), isSelected);
 			face(gfx, tab.conversation().name, r.x() + 4, r.y() + (r.h() - FACE) / 2);
-			gfx.text(font, tabLabel(tab.conversation()), r.x() + 4 + FACE + 3, r.y() + (r.h() - 8) / 2, color);
+			gfx.label(font, tabLabel(tab.conversation()), r.x() + 4 + FACE + 3, r.y(), r.h(), color);
 		}
-		chip(gfx, headerButton(frame, 0), "—", Theme.TEXT, interactive && headerButton(frame, 0).contains(mouseX, mouseY), false);
+		iconChip(gfx, headerButton(frame, 0), Icons.MINUS, Theme.TEXT, interactive && headerButton(frame, 0).contains(mouseX, mouseY));
 		if (interactive) {
-			chip(gfx, headerButton(frame, 1), PrivateMessages.hideInChat() ? "隱" : "顯", PrivateMessages.hideInChat() ? Theme.SUCCESS : Theme.TEXT_DIM, headerButton(frame, 1).contains(mouseX, mouseY), false);
+			iconChip(gfx, headerButton(frame, 1), PrivateMessages.hideInChat() ? Icons.EYE_OFF : Icons.EYE, PrivateMessages.hideInChat() ? Theme.SUCCESS : Theme.TEXT_DIM, headerButton(frame, 1).contains(mouseX, mouseY));
 			if (selected != null) {
-				chip(gfx, headerButton(frame, 2), "✕", Theme.DANGER, headerButton(frame, 2).contains(mouseX, mouseY), false);
+				iconChip(gfx, headerButton(frame, 2), Icons.CLOSE, Theme.DANGER, headerButton(frame, 2).contains(mouseX, mouseY));
 			}
 		}
 
@@ -288,7 +293,7 @@ public final class PrivateWindow {
 				input.setY(box.y());
 				input.setWidth(box.w());
 				input.setMaxLength(PrivateMessages.maxMessageLength(selected.name));
-				input.setHint(Component.literal("私訊 " + selected.display + "…").withStyle(ChatFormatting.DARK_GRAY));
+				Theme.hint(input, "私訊 " + selected.display + "…");
 			}
 			chip(gfx, footerChip(frame, 0), "傳送", Theme.ACCENT, footerChip(frame, 0).contains(mouseX, mouseY), false);
 			chip(gfx, footerChip(frame, 1), "表情", Theme.TEXT, footerChip(frame, 1).contains(mouseX, mouseY), popup == Popup.EMOJI);
@@ -368,7 +373,7 @@ public final class PrivateWindow {
 					gfx.fill(x, y, x + EMOJI_CELL, y + EMOJI_CELL, Theme.CHIP_HOVER);
 				}
 				String symbol = emojis.get(index).symbol();
-				gfx.text(font(), symbol, x + (EMOJI_CELL - font().width(symbol)) / 2, y + 3, 0xFFFFFFFF);
+				gfx.centered(font(), symbol, x, y, EMOJI_CELL, EMOJI_CELL, 0xFFFFFFFF);
 			}
 		}
 		if (hovered >= 0) {
