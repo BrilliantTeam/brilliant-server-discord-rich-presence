@@ -133,6 +133,15 @@ public final class ChatMenu {
 				new Item("聊天", "頻道設定", "切換發言、讀取與關閉各頻道", CHAT, screen -> ChannelBar.openSettings()),
 				new Item("工具", "自訂指令", "開啟自訂指令選單", TOOL, page(CommandMenuScreen::new)),
 				new Item("工具", "分享座標", "插入目前座標與地獄換算", TOOL, screen -> insert(CoordTools.shareText()).accept(screen)),
+				new Item("工具", "記分板位置", "拖曳移動、滾輪縮放記分板", TOOL, page(ScoreboardEditScreen::new)),
+				new Item("伺服器", "伺服器選單", "/menu", INFO, command("menu")),
+				new Item("伺服器", "切換分流", "/bs", INFO, command("bs")),
+				new Item("資訊欄", "開關", "/sbt 顯示或隱藏記分板", INFO, command("sbt")),
+				new Item("資訊欄", "壹頁", "/sbt1 個人資訊與在線人數", INFO, command("sbt1")),
+				new Item("資訊欄", "貳頁", "/sbt2 領地與傳點", INFO, command("sbt2")),
+				new Item("資訊欄", "參頁", "/sbt3 領地飛行與全地圖飛行", INFO, command("sbt3")),
+				new Item("資訊欄", "肆頁", "/sbt4 連鎖功能與雜項", INFO, command("sbt4")),
+				new Item("資訊欄", "伍頁", "/sbt5 防護與剝皮功能", INFO, command("sbt5")),
 				new Item("展示", "手上物品", "插入 [i]", SHOW, insert("[i]")),
 				new Item("展示", "背包", "插入 [inv]", SHOW, insert("[inv]")),
 				new Item("展示", "終界箱", "插入 [ender]", SHOW, insert("[ender]")),
@@ -304,7 +313,7 @@ public final class ChatMenu {
 				}
 				String tag = item.section();
 				gfx.label(font, tag, r.x() + 5, r.y(), r.h(), Theme.TEXT_DIM);
-				int lx = r.x() + 5 + font.width("頻道") + 6;
+				int lx = r.x() + 5 + font.width("伺服器") + 6;
 				int detailWidth = Math.min(font.width(item.detail()), r.w() / 3);
 				String label = font.plainSubstrByWidth(item.label(), r.x() + r.w() - lx - detailWidth - 10);
 				gfx.label(font, label, lx, r.y(), r.h(), item.color());

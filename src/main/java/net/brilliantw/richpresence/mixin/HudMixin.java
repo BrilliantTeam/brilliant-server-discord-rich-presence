@@ -2,6 +2,7 @@ package net.brilliantw.richpresence.mixin;
 
 import net.brilliantw.richpresence.Gfx;
 import net.brilliantw.richpresence.PrivateWindow;
+import net.brilliantw.richpresence.ScoreboardLayout;
 import net.minecraft.client.DeltaTracker;
 //? if >=26.2 {
 import net.minecraft.client.gui.Hud;
@@ -13,6 +14,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 //?} else {
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
+import net.minecraft.world.scores.Objective;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,6 +26,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /*@Mixin(Gui.class)
 *///?}
 public abstract class HudMixin {
+	//? if >=26.1 {
+	@Inject(method = "displayScoreboardSidebar", at = @At("HEAD"))
+	private void brilliant$beginSidebar(GuiGraphicsExtractor graphics, Objective objective, CallbackInfo ci) {
+		ScoreboardLayout.begin(graphics.pose());
+	}
+
+	@Inject(method = "displayScoreboardSidebar", at = @At("RETURN"))
+	private void brilliant$endSidebar(GuiGraphicsExtractor graphics, Objective objective, CallbackInfo ci) {
+		ScoreboardLayout.end(graphics.pose());
+	}
+	//?} else {
+	/*@Inject(method = "displayScoreboardSidebar", at = @At("HEAD"))
+	private void brilliant$beginSidebar(GuiGraphics graphics, Objective objective, CallbackInfo ci) {
+		ScoreboardLayout.begin(graphics.pose());
+	}
+
+	@Inject(method = "displayScoreboardSidebar", at = @At("RETURN"))
+	private void brilliant$endSidebar(GuiGraphics graphics, Objective objective, CallbackInfo ci) {
+		ScoreboardLayout.end(graphics.pose());
+	}
+	*///?}
+
 	//? if >=26.1 {
 	@Inject(method = "extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V", at = @At("TAIL"))
 	private void brilliant$renderPrivateWindow(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
