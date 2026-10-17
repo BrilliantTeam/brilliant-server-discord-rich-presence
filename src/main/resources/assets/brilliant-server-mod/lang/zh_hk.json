@@ -1,5 +1,5 @@
 {
 	"modmenu.nameTranslation.brilliant-server-mod": "輝煌模組",
-	"modmenu.summaryTranslation.brilliant-server-mod": "輝煌伺服器的專屬客戶端模組：Discord 狀態、公告、表情、頻道、自訂指令與高清看圖。",
-	"modmenu.descriptionTranslation.brilliant-server-mod": "輝煌伺服器（brilliantw.net）的專屬客戶端模組。\n\n• Discord 遊玩狀態：顯示目前所在的分流與遊戲版本\n• 伺服器公告：在遊戲內閱讀 Discord 公告，支援圖片、影片封面與動態表情\n• 表情符號選單：在聊天欄直接挑選伺服器表情\n• 頻道快速切換：選好頻道後自動加上前綴，並可一鍵調整頻道設定\n• 自訂指令選單：分組整理常用指令，可匯出、匯入分享給其他玩家\n• 高清看圖：以原始畫質檢視 Discord 傳來的圖片與 GIF\n• 配方書修正：正確辨識伺服器自訂材料的合成配方\n\n伺服器相關功能只會在 brilliantw.net 上啟用。"
+	"modmenu.summaryTranslation.brilliant-server-mod": "輝煌伺服器專屬客戶端模組：Discord 狀態、聊天欄選單、公告與官網、頻道分頁、私訊視窗與更多便利功能。",
+	"modmenu.descriptionTranslation.brilliant-server-mod": "輝煌伺服器（brilliantw.net）的專屬客戶端模組。\n\n• Discord 遊玩狀態：顯示所在分流與遊玩時間\n• 聊天欄選單：可搜尋，收錄公告、官網文章、聊天紀錄、常用訊息、自訂指令、資訊欄與動作\n• 頻道分頁：快速切換發言頻道，並可多選只看特定頻道\n• 私訊視窗：可縮放、顯示頭像並直接回覆\n• 表情符號選單、彩色文字預覽、高清看圖、配方書修正\n• 遊戲內更新通知與一鍵下載\n\n功能只會在 brilliantw.net 上啟用。"
 }
