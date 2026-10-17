@@ -46,8 +46,11 @@ public final class ModUpdate {
 	private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
 	private static final Gson GSON = new Gson();
 
+	public static final int CHECK_TICKS = 5 * 60 * 20;
+
 	private static Latest available;
-	private static boolean checked;
+	private static boolean checking;
+	private static int notifiedBuild;
 	private static volatile Status status = Status.IDLE;
 	private static volatile String message = "";
 	private static volatile int progress;
@@ -106,16 +109,17 @@ public final class ModUpdate {
 	}
 
 	public static void check() {
-		if (checked || currentBuild() == 0) {
+		if (checking || currentBuild() == 0 || status == Status.DOWNLOADING || status == Status.READY) {
 			return;
 		}
-		checked = true;
+		checking = true;
 		HttpRequest request = HttpRequest.newBuilder(URI.create(API + URLEncoder.encode(RPConfig.MINECRAFT_VERSION, StandardCharsets.UTF_8)))
 				.timeout(Duration.ofSeconds(15))
 				.header("User-Agent", RPConfig.USER_AGENT)
 				.GET()
 				.build();
 		HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).whenComplete((response, error) -> {
+			checking = false;
 			if (error != null || response.statusCode() != 200) {
 				return;
 			}
@@ -129,7 +133,14 @@ public final class ModUpdate {
 				return;
 			}
 			Minecraft.getInstance().execute(() -> {
+				if (status == Status.DOWNLOADING || status == Status.READY) {
+					return;
+				}
 				available = latest;
+				if (latest.build == notifiedBuild) {
+					return;
+				}
+				notifiedBuild = latest.build;
 				RichPresenceModClient.showMessage(Component.literal("｜").withStyle(ChatFormatting.GRAY)
 						.append(Component.literal("模組").withStyle(ChatFormatting.GOLD))
 						.append(Component.literal("｜").withStyle(ChatFormatting.GRAY))
@@ -163,6 +174,10 @@ public final class ModUpdate {
 				}
 				launchHelper(oldJar, newJar, target);
 				status = Status.READY;
+				Minecraft.getInstance().execute(() -> RichPresenceModClient.showMessage(Component.literal("｜").withStyle(ChatFormatting.GRAY)
+						.append(Component.literal("模組").withStyle(ChatFormatting.GOLD))
+						.append(Component.literal("｜").withStyle(ChatFormatting.GRAY))
+						.append(Component.literal("新版本已下載完成，關閉遊戲後會自動安裝；也可以在「選單」的更新頁面直接關閉遊戲。").withStyle(ChatFormatting.WHITE))));
 			} catch (Exception e) {
 				message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
 				status = Status.FAILED;

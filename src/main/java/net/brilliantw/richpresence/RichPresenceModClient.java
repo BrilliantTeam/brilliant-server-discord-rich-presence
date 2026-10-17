@@ -28,6 +28,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 	private static String host;
 	private Connection session;
 	private int ticks;
+	private int updateTicks;
 	private boolean polling;
 
 	@Override
@@ -39,6 +40,8 @@ public final class RichPresenceModClient implements ClientModInitializer {
 				return;
 			}
 			ticks = POLL_TICKS - 40;
+			updateTicks = 0;
+			ModUpdate.check();
 			if (session == handler.getConnection() && host != null) {
 				return;
 			}
@@ -46,7 +49,6 @@ public final class RichPresenceModClient implements ClientModInitializer {
 			host = joined;
 			presence.start(label(host), state(host), imageKey(host));
 			AnnouncementStore.refreshAll(RichPresenceModClient::notifyUnread);
-			ModUpdate.check();
 		});
 
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
@@ -55,6 +57,10 @@ public final class RichPresenceModClient implements ClientModInitializer {
 			}
 		});
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			if (host != null && ++updateTicks >= ModUpdate.CHECK_TICKS) {
+				updateTicks = 0;
+				ModUpdate.check();
+			}
 			if (session != null && !session.isConnected()) {
 				endSession();
 			}

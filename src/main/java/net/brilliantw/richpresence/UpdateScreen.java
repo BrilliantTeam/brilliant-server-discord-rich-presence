@@ -39,7 +39,13 @@ public final class UpdateScreen extends Screen {
 	@Override
 	protected void init() {
 		int y = top() + HEIGHT - 28;
-		install = addRenderableWidget(Button.builder(Component.literal("下載並安裝"), b -> ModUpdate.download()).bounds(left() + 10, y, 136, 20).build());
+		install = addRenderableWidget(Button.builder(Component.literal("下載並安裝"), b -> {
+			if (ModUpdate.status() == ModUpdate.Status.READY) {
+				minecraft.stop();
+			} else {
+				ModUpdate.download();
+			}
+		}).bounds(left() + 10, y, 136, 20).build());
 		addRenderableWidget(Button.builder(Component.literal("在瀏覽器開啟"), b -> {
 			ModUpdate.Latest latest = ModUpdate.available();
 			if (latest != null) {
@@ -65,7 +71,7 @@ public final class UpdateScreen extends Screen {
 	private String statusText() {
 		return switch (ModUpdate.status()) {
 			case DOWNLOADING -> "下載中… " + ModUpdate.progress() + "%";
-			case READY -> "已下載並驗證完成，關閉遊戲後會自動安裝新版本";
+			case READY -> "已下載並驗證完成，關閉遊戲後會自動安裝；下次啟動即為新版本";
 			case FAILED -> "更新失敗：" + ModUpdate.message();
 			case IDLE -> ModUpdate.canInstall() ? "會先比對檔案雜湊值，確認無誤後於關閉遊戲時替換" : "此安裝方式無法自動更新，請在瀏覽器下載";
 		};
@@ -96,7 +102,9 @@ public final class UpdateScreen extends Screen {
 		for (int i = 0; i < Math.min(2, lines.size()); i++) {
 			gfx.text(font, lines.get(i), x + 12, y + HEIGHT - 52 + i * 11, color);
 		}
-		install.active = latest != null && ModUpdate.canInstall() && (status == ModUpdate.Status.IDLE || status == ModUpdate.Status.FAILED);
+		install.setMessage(Component.literal(status == ModUpdate.Status.READY ? "關閉遊戲以完成更新" : "下載並安裝"));
+		install.active = status == ModUpdate.Status.READY
+				|| latest != null && ModUpdate.canInstall() && (status == ModUpdate.Status.IDLE || status == ModUpdate.Status.FAILED);
 	}
 
 	@Override
