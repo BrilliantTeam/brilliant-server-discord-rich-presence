@@ -1,27 +1,66 @@
 package net.brilliantw.richpresence;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.stream.Collectors;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 
 public final class RichPresenceModClient implements ClientModInitializer {
+	private static final int POLL_TICKS = 200;
+	private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+
 	private final DiscordPresenceManager presence = new DiscordPresenceManager();
+	private String host;
+	private Connection session;
+	private int ticks;
+	private boolean polling;
 
 	@Override
 	public void onInitializeClient() {
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-			String host = brilliantHost(client);
-			if (host != null) {
-				startPresenceFor(host);
-				AnnouncementStore.refreshAll(RichPresenceModClient::notifyUnread);
+			String joined = brilliantHost(client);
+			if (joined == null) {
+				endSession();
+				return;
 			}
+			ticks = POLL_TICKS - 40;
+			if (session == handler.getConnection() && host != null) {
+				return;
+			}
+			session = handler.getConnection();
+			host = joined;
+			presence.start(label(host), state(host), imageKey(host));
+			AnnouncementStore.refreshAll(RichPresenceModClient::notifyUnread);
 		});
 
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> presence.stop());
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			if (!handler.getConnection().isConnected()) {
+				endSession();
+			}
+		});
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			if (session != null && !session.isConnected()) {
+				endSession();
+			}
+			if (host != null && !polling && ++ticks >= POLL_TICKS) {
+				ticks = 0;
+				pollServer(client);
+			}
+		});
 		DiscordImageLinks.register();
 	}
 
@@ -67,10 +106,52 @@ public final class RichPresenceModClient implements ClientModInitializer {
 		*///?}
 	}
 
-	private void startPresenceFor(String host) {
-		String label = RPConfig.SERVER_LABELS.getOrDefault(host, RPConfig.SERVER_LABELS.get(RPConfig.BASE_DOMAIN));
-		String smallImageKey = RPConfig.SERVER_IMAGE_KEYS.getOrDefault(host, RPConfig.DEFAULT_IMAGE_KEY);
-		String state = host + "｜" + RPConfig.MINECRAFT_VERSION;
-		presence.start(label, state, smallImageKey);
+	private void endSession() {
+		session = null;
+		host = null;
+		presence.stop();
+	}
+
+	private static String label(String host) {
+		return RPConfig.SERVER_LABELS.getOrDefault(host, RPConfig.SERVER_LABELS.get(RPConfig.BASE_DOMAIN));
+	}
+
+	private static String state(String host) {
+		return host + "｜" + RPConfig.MINECRAFT_VERSION;
+	}
+
+	private static String imageKey(String host) {
+		return RPConfig.SERVER_IMAGE_KEYS.getOrDefault(host, RPConfig.DEFAULT_IMAGE_KEY);
+	}
+
+	static String hostOf(String body) {
+		try {
+			JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+			if (!json.has("online") || !json.get("online").getAsBoolean() || !json.has("host") || json.get("host").isJsonNull()) {
+				return null;
+			}
+			String found = json.get("host").getAsString();
+			return RPConfig.SERVER_LABELS.containsKey(found) ? found : null;
+		} catch (RuntimeException e) {
+			return null;
+		}
+	}
+
+	private void pollServer(Minecraft client) {
+		polling = true;
+		String name = client.getUser().getName();
+		HttpRequest request = HttpRequest.newBuilder(URI.create(RPConfig.WEBSITE_URL + "/api/presence?name=" + URLEncoder.encode(name, StandardCharsets.UTF_8)))
+				.timeout(Duration.ofSeconds(10))
+				.header("User-Agent", "Brilliant-Server-Mod")
+				.GET()
+				.build();
+		HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).whenComplete((response, error) -> client.execute(() -> {
+			polling = false;
+			String found = error == null && response.statusCode() == 200 ? hostOf(response.body()) : null;
+			if (host != null && found != null && !found.equals(host)) {
+				host = found;
+				presence.update(label(host), state(host), imageKey(host));
+			}
+		}));
 	}
 }
