@@ -3,6 +3,7 @@ package net.brilliantw.richpresence.mixin;
 import net.brilliantw.richpresence.Gfx;
 import net.brilliantw.richpresence.PrivateWindow;
 import net.brilliantw.richpresence.ScoreboardLayout;
+import net.brilliantw.richpresence.ScriptMonitor;
 import net.minecraft.client.DeltaTracker;
 //? if >=26.2 {
 import net.minecraft.client.gui.Hud;
@@ -60,6 +61,8 @@ public abstract class HudMixin {
 			return;
 		}
 		//?}
-		PrivateWindow.renderHud(new Gfx(graphics));
+		Gfx gfx = new Gfx(graphics);
+		PrivateWindow.renderHud(gfx);
+		ScriptMonitor.renderHud(gfx);
 	}
 }

@@ -30,6 +30,7 @@ public final class EditDialog extends Screen {
 	private final Saver saver;
 	private final String[] values;
 	private int groupIndex;
+	private String choiceLabel = "分組";
 	private String error = "";
 
 	public EditDialog(Screen parent, String title, List<Field> fields, List<String> groups, int groupIndex, Saver saver) {
@@ -40,6 +41,11 @@ public final class EditDialog extends Screen {
 		this.groupIndex = groupIndex;
 		this.saver = saver;
 		this.values = fields.stream().map(Field::value).toArray(String[]::new);
+	}
+
+	public EditDialog choice(String label) {
+		choiceLabel = label;
+		return this;
 	}
 
 	private int dialogHeight() {
@@ -87,7 +93,7 @@ public final class EditDialog extends Screen {
 	}
 
 	private Component groupLabel() {
-		return Component.literal("分組：" + groups.get(groupIndex) + (groups.size() > 1 ? "（點擊切換）" : ""));
+		return Component.literal(choiceLabel + "：" + groups.get(groupIndex) + (groups.size() > 1 ? "（點擊切換）" : ""));
 	}
 
 	private void save() {

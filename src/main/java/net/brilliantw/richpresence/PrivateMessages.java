@@ -248,6 +248,7 @@ public final class PrivateMessages {
 			record(to, new Message(true, server, text, System.currentTimeMillis()));
 		} else if (to.equals(SELF) && !from.equals(SELF)) {
 			record(from, new Message(false, server, text, System.currentTimeMillis()));
+			ScriptEngine.onPrivate(from, text);
 		}
 	}
 

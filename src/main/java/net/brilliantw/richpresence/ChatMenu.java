@@ -143,6 +143,7 @@ public final class ChatMenu {
 				new Item("聊天", "頻道設定", "切換發言、讀取與關閉各頻道", CHAT, screen -> ChannelBar.openSettings()),
 				new Item("工具", "自訂指令", "開啟自訂指令選單", TOOL, page(CommandMenuScreen::new)),
 				new Item("工具", "分享座標", "插入目前座標與地獄換算", TOOL, screen -> insert(CoordTools.shareText()).accept(screen)),
+				new Item("工具", "自動腳本", "用積木組合自動化腳本", TOOL, page(ScriptEditorScreen::new)),
 				new Item("工具", "記分板位置", "拖曳移動、滾輪縮放記分板", TOOL, page(ScoreboardEditScreen::new)),
 				new Item("伺服器", "伺服器選單", "/menu", INFO, command("menu")),
 				new Item("伺服器", "切換分流", "/bs", INFO, command("bs")),

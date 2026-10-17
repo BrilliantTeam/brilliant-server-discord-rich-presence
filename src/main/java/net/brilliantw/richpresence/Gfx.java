@@ -107,4 +107,14 @@ public final class Gfx {
 	public void endScissor() {
 		graphics.disableScissor();
 	}
+
+	public void push(float x, float y, float scale) {
+		graphics.pose().pushMatrix();
+		graphics.pose().translate(x, y);
+		graphics.pose().scale(scale, scale);
+	}
+
+	public void pop() {
+		graphics.pose().popMatrix();
+	}
 }

@@ -5,6 +5,7 @@ import net.brilliantw.richpresence.ChatTabs;
 import net.brilliantw.richpresence.DiscordImageLinks;
 import net.brilliantw.richpresence.RichPresenceModClient;
 import net.brilliantw.richpresence.PrivateMessages;
+import net.brilliantw.richpresence.ScriptEngine;
 import net.minecraft.client.gui.components.ChatComponent;
 //? if >=26.1 {
 import net.minecraft.client.multiplayer.chat.GuiMessage;
@@ -42,6 +43,7 @@ public abstract class ChatComponentMixin {
 		}
 		ChatHistoryScreen.record(message);
 		ChatTabs.track(message);
+		ScriptEngine.onChat(message.getString());
 		DiscordImageLinks.scan(message);
 		if (PrivateMessages.onChatMessage(message) && PrivateMessages.hideInChat()) {
 			ci.cancel();

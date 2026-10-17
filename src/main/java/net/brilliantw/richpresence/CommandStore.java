@@ -149,8 +149,12 @@ public final class CommandStore {
 	public static String export(List<Group> groups) {
 		Data data = new Data();
 		data.groups = groups;
+		return EXPORT_PREFIX + deflate(COMPACT.toJson(data));
+	}
+
+	static String deflate(String json) {
 		Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
-		deflater.setInput(COMPACT.toJson(data).getBytes(StandardCharsets.UTF_8));
+		deflater.setInput(json.getBytes(StandardCharsets.UTF_8));
 		deflater.finish();
 		ByteArrayOutputStream output = new ByteArrayOutputStream();
 		byte[] buffer = new byte[8192];
@@ -158,10 +162,10 @@ public final class CommandStore {
 			output.write(buffer, 0, deflater.deflate(buffer));
 		}
 		deflater.end();
-		return EXPORT_PREFIX + Base64.getEncoder().encodeToString(output.toByteArray());
+		return Base64.getEncoder().encodeToString(output.toByteArray());
 	}
 
-	private static String inflate(byte[] compressed) throws DataFormatException {
+	static String inflate(byte[] compressed) throws DataFormatException {
 		Inflater inflater = new Inflater();
 		try {
 			inflater.setInput(compressed);

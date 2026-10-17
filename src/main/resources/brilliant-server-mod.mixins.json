@@ -8,7 +8,10 @@
 		"ClientPacketListenerMixin",
 		"ChatScreenMixin",
 		"RecipeDisplayEntryMixin",
-		"StackedItemContentsMixin"
+		"StackedItemContentsMixin",
+		"KeyMappingAccessor",
+		"KeyboardHandlerInvoker",
+		"AbstractContainerScreenAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1

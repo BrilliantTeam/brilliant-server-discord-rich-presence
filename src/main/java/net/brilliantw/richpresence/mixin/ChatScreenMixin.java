@@ -9,6 +9,7 @@ import net.brilliantw.richpresence.Gfx;
 import net.brilliantw.richpresence.PrivateWindow;
 import net.brilliantw.richpresence.QuickMessages;
 import net.brilliantw.richpresence.RichPresenceModClient;
+import net.brilliantw.richpresence.ScriptMonitor;
 //? if >=26.1 {
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 //?} else {
@@ -65,6 +66,7 @@ public abstract class ChatScreenMixin extends Screen {
 	*///?}
 		Gfx gfx = new Gfx(graphics);
 		PrivateWindow.render(gfx, width, height, mouseX, mouseY, true);
+		ScriptMonitor.render(gfx, width, height, mouseX, mouseY, true);
 		if (!ChatMenu.isOpen() && getFocused() == ChatMenu.search()) {
 			setFocused(input);
 		}
@@ -105,7 +107,7 @@ public abstract class ChatScreenMixin extends Screen {
 	@Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
 	private void brilliant$clickEmojiPicker(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
 		ChatScreen screen = (ChatScreen) (Object) this;
-		if (PrivateWindow.mouseClicked(screen, event, doubleClick)) {
+		if (PrivateWindow.mouseClicked(screen, event, doubleClick) || ScriptMonitor.mouseClicked(screen, event.x(), event.y(), event.button())) {
 			cir.setReturnValue(true);
 			return;
 		}
@@ -130,12 +132,12 @@ public abstract class ChatScreenMixin extends Screen {
 
 	@Override
 	public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
-		return PrivateWindow.mouseDragged((ChatScreen) (Object) this, event.x(), event.y()) || super.mouseDragged(event, dragX, dragY);
+		return PrivateWindow.mouseDragged((ChatScreen) (Object) this, event.x(), event.y()) || ScriptMonitor.mouseDragged(event.x(), event.y()) || super.mouseDragged(event, dragX, dragY);
 	}
 
 	@Override
 	public boolean mouseReleased(MouseButtonEvent event) {
-		return PrivateWindow.mouseReleased((ChatScreen) (Object) this, event.x(), event.y()) || super.mouseReleased(event);
+		return PrivateWindow.mouseReleased((ChatScreen) (Object) this, event.x(), event.y()) || ScriptMonitor.mouseReleased() || super.mouseReleased(event);
 	}
 
 	@Inject(method = "removed", at = @At("HEAD"))

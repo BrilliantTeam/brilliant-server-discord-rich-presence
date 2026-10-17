@@ -48,6 +48,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 			session = handler.getConnection();
 			host = joined;
 			presence.start(label(host), state(host), imageKey(host));
+			ScriptEngine.onJoin();
 			AnnouncementStore.refreshAll(RichPresenceModClient::notifyUnread);
 		});
 
@@ -57,6 +58,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 			}
 		});
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			ScriptEngine.tick(client);
 			if (host != null && ++updateTicks >= ModUpdate.CHECK_TICKS) {
 				updateTicks = 0;
 				ModUpdate.check();
@@ -71,6 +73,8 @@ public final class RichPresenceModClient implements ClientModInitializer {
 		});
 		DiscordImageLinks.register();
 		ModUpdate.cleanup();
+		ScriptEngine.register();
+		SlotNumbers.register();
 	}
 
 	public static boolean isOnBrilliantServer() {
@@ -169,6 +173,7 @@ public final class RichPresenceModClient implements ClientModInitializer {
 			if (host != null && found != null && !found.equals(host)) {
 				host = found;
 				presence.update(label(host), state(host), imageKey(host));
+				ScriptEngine.onServerChange();
 			}
 		}));
 	}
