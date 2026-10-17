@@ -2,6 +2,7 @@ package net.brilliantw.richpresence.mixin;
 
 import net.brilliantw.richpresence.ChannelBar;
 import net.brilliantw.richpresence.ChatMenu;
+import net.brilliantw.richpresence.ChatTabs;
 import net.brilliantw.richpresence.ColorCodes;
 import net.brilliantw.richpresence.EmojiPicker;
 import net.brilliantw.richpresence.Gfx;
@@ -52,6 +53,7 @@ public abstract class ChatScreenMixin extends Screen {
 		addRenderableWidget(PrivateWindow.createInput());
 		addRenderableWidget(ChatMenu.createSearch());
 		ChatMenu.onInit((ChatScreen) (Object) this);
+		ChatTabs.open();
 	}
 
 	//? if >=26.1 {
@@ -86,6 +88,7 @@ public abstract class ChatScreenMixin extends Screen {
 			if (RichPresenceModClient.isOnBrilliantServer()) {
 				QuickMessages.render(screen, gfx, input.getValue(), mouseX, mouseY);
 				ChatMenu.render(screen, gfx, mouseX, mouseY);
+				ChatTabs.render(screen, gfx, mouseX, mouseY);
 			}
 		}
 		PrivateWindow.renderOverlay(gfx, width, height, mouseX, mouseY);
@@ -109,7 +112,8 @@ public abstract class ChatScreenMixin extends Screen {
 		if (brilliant$typingCommand()) {
 			return;
 		}
-		if (EmojiPicker.mouseClicked(screen, event.x(), event.y(), event.button())
+		if (ChatTabs.mouseClicked(screen, event.x(), event.y(), event.button())
+				|| EmojiPicker.mouseClicked(screen, event.x(), event.y(), event.button())
 				|| QuickMessages.mouseClicked(screen, input.getValue(), event.x(), event.y(), event.button())
 				|| ChannelBar.mouseClicked(screen, event.x(), event.y(), event.button())
 				|| ChatMenu.mouseClicked(screen, event.x(), event.y(), event.button())) {
@@ -132,6 +136,11 @@ public abstract class ChatScreenMixin extends Screen {
 	@Override
 	public boolean mouseReleased(MouseButtonEvent event) {
 		return PrivateWindow.mouseReleased((ChatScreen) (Object) this, event.x(), event.y()) || super.mouseReleased(event);
+	}
+
+	@Inject(method = "removed", at = @At("HEAD"))
+	private void brilliant$resetTabView(CallbackInfo ci) {
+		ChatTabs.close();
 	}
 
 	@ModifyVariable(method = "handleChatInput", at = @At("HEAD"), argsOnly = true)
